@@ -409,7 +409,12 @@ module Beaker
 
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = 1
-              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+              if masterless
+                configure_type_defaults_on(host)
+                on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
+              else
+                setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+              end
             else
               # We only need answers if we're using the classic installer
               version = host['pe_ver'] || opts[:pe_ver]
