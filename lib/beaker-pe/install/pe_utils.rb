@@ -397,11 +397,16 @@ module Beaker
               install_puppet_agent_pe_promoted_repo_on(host, { :puppet_agent_version => host[:puppet_agent_version] || opts[:puppet_agent_version],
                                                                :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
                                                                :pe_ver => host[:pe_ver] || opts[:pe_ver],
-                                                               :puppet_collection => host[:puppet_collection] || opts[:puppet_collection] })
+                                                               :puppet_collection => host[:puppet_collection] || opts[:puppet_collection],
+                                                               :pe_promoted_builds_url => host[:pe_promoted_builds_url] || opts[:pe_promoted_builds_url] })
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = [0, 1]
               acceptable_exit_codes << 2 if opts[:type] == :upgrade
-              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+              if masterless
+                configure_type_defaults_on(host)
+              else
+                setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+              end
             elsif host['platform'] =~ /windows/
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
               msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
