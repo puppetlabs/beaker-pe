@@ -29,6 +29,8 @@ Acceptance tests live in the `acceptance/tests` folder.  These are Beaker tests,
 `bundle install` execution, but can be avoided if you're not looking to run 
 acceptance tests by ignoring the `acceptance_testing` gem group.
 
+Testing the test of the test of tests
+
 
 You can run the acceptance testing suite by invoking the `test:acceptance` rake
 task. It should be noted that this is a shortcut for the `test:acceptance:quick`
