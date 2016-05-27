@@ -685,15 +685,9 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject ).to receive( :on ).with( hosts[2], /puppet agent -t/, :acceptable_exit_codes => [1] ).once
       expect( subject ).to receive( :on ).with( hosts[3], /puppet agent -t/, :acceptable_exit_codes => [0, 1] ).once
       #sign certificate per-host
-      expect( subject ).to receive( :sign_certificate_for ).with( hosts[0] ).once
-      expect( subject ).to receive( :sign_certificate_for ).with( hosts[1] ).once
-      expect( subject ).to receive( :sign_certificate_for ).with( hosts[2] ).once
-      expect( subject ).to receive( :sign_certificate_for ).with( hosts[3] ).once
+      expect( subject ).to receive( :sign_certificate_for ).once.and_return(true)
       #stop puppet agent on all hosts
-      expect( subject ).to receive( :stop_agent_on ).with( hosts[0] ).once
-      expect( subject ).to receive( :stop_agent_on ).with( hosts[1] ).once
-      expect( subject ).to receive( :stop_agent_on ).with( hosts[2] ).once
-      expect( subject ).to receive( :stop_agent_on ).with( hosts[3] ).once
+      expect( subject ).to receive( :stop_agent_on ).with( hosts, :run_in_parallel => false ).once
       # We wait for puppetdb to restart 3 times; once before the first puppet run, and then during each puppet run
       expect( subject ).to receive( :sleep_until_puppetdb_started ).with( hosts[0] ).exactly(3).times
       #run each puppet agent (also captures the final run below)
@@ -707,6 +701,62 @@ describe ClassMixedWithDSLInstallUtils do
       #wait for all hosts to appear in the dashboard
       #run puppet agent now that installation is complete
       # This is captured above (run each puppet agent)
+
+      hosts.each do |host|
+        allow( host ).to receive( :tmpdir )
+        allow( subject ).to receive( :configure_type_defaults_on ).with( host )
+      end
+
+      subject.do_install( hosts, opts )
+    end
+
+    it 'can perform a simple installation in parallel' do
+      opts[:run_in_parallel] = ['configure', 'install']
+      allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
+      allow( subject ).to receive( :fetch_pe ).and_return( true )
+      allow( subject ).to receive( :create_remote_file ).and_return( true )
+      allow( subject ).to receive( :sign_certificate_for ).and_return( true )
+      allow( subject ).to receive( :stop_agent_on ).and_return( true )
+      allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
+      allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('3.0')
+      allow( subject ).to receive( :version_is_less ).with('3.0', '4.0').and_return( true )
+      allow( subject ).to receive( :version_is_less ).with('3.0', '3.4').and_return( true )
+      allow( subject ).to receive( :version_is_less ).with('3.0', '3.0').and_return( false )
+      allow( subject ).to receive( :version_is_less ).with('3.0', '3.99').and_return( true )
+      allow( subject ).to receive( :version_is_less ).with('3.99', '3.0').and_return( false )
+      allow( subject ).to receive( :check_puppetdb_status_endpoint ).and_return( nil )
+      allow( subject ).to receive( :version_is_less ).with('3.0', '2016.1.0').and_return( false )
+      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
+      allow( subject ).to receive( :puppet_agent ) do |arg|
+        "puppet agent #{arg}"
+      end
+      allow( subject ).to receive( :puppet ) do |arg|
+        "puppet #{arg}"
+      end
+
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+
+      # Since these methods happen in another process, they don't register with rspec,
+      # but we still need to be able to call them.
+
+      allow( subject ).to receive( :create_remote_file ).with( hosts[0], /answers/, /q/ )
+      #run installer on all hosts
+      allow( subject ).to receive( :on ).with( hosts[0], /puppet-enterprise-installer/ )
+      allow( subject ).to receive( :install_msi_on ).with ( any_args )
+      allow( subject ).to receive( :on ).with( hosts[2], / hdiutil attach puppet-enterprise-3.0-osx-10.9-x86_64.dmg && installer -pkg \/Volumes\/puppet-enterprise-3.0\/puppet-enterprise-installer-3.0.pkg -target \// )
+      allow( hosts[3] ).to receive( :install_from_file ).with( /swix$/ )
+      allow( subject ).to receive( :on ).with( any_args )
+      #sign certificate per-host
+      expect( subject ).to receive( :sign_certificate_for ).once.and_return(true)
+      # We wait for puppetdb to restart 3 times; once before the first puppet run, and then during each puppet run
+      expect( subject ).to receive( :sleep_until_puppetdb_started ).with( hosts[0]).once
+      #stop puppet agent on all hosts
+      expect( subject ).to receive( :stop_agent_on ).with( hosts, :run_in_parallel => true  ).once
+      #run rake task on dashboard
+
+      expect( subject ).to receive( :on ).with( hosts[0], /\/opt\/puppet\/bin\/rake -sf \/opt\/puppet\/share\/puppet-dashboard\/Rakefile .* RAILS_ENV=production/ ).once
+      expect( subject ).to receive( :block_on ).with( hosts, :run_in_parallel => true ).exactly(3).times
+      expect( subject ).to receive( :block_on ).with( hosts ).twice
 
       hosts.each do |host|
         allow( host ).to receive( :tmpdir )
@@ -733,7 +783,7 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject ).to receive( :on ).with( hosts[0], /puppet-enterprise-installer/ ).once
       expect( subject ).to receive( :create_remote_file ).with( hosts[0], /answers/, /q/ ).once
       expect( subject ).to_not receive( :sign_certificate_for )
-      expect( subject ).to receive( :stop_agent_on ).with( hosts[0] ).once
+      expect( subject ).to receive( :stop_agent_on ).with( hosts, :run_in_parallel => false ).once
       expect( subject ).to_not receive( :sleep_until_puppetdb_started )
       expect( subject ).to_not receive( :wait_for_host_in_dashboard )
       expect( subject ).to_not receive( :on ).with( hosts[0], /puppet agent -t/, :acceptable_exit_codes => [0,2] )
@@ -783,11 +833,12 @@ describe ClassMixedWithDSLInstallUtils do
                                                                                      {:puppet_agent_version=>nil, :puppet_agent_sha=>nil, :pe_ver=>hosts[2][:pe_ver], :puppet_collection=>nil} ).once
       hosts.each do |host|
         expect( subject ).to receive( :configure_type_defaults_on ).with( host ).once
-        expect( subject ).to receive( :sign_certificate_for ).with( host ).once
-        expect( subject ).to receive( :stop_agent_on ).with( host ).once
         # Each puppet agent runs twice, once for the initial run, and once to configure mcollective
         expect( subject ).to receive( :on ).with( host, /puppet agent -t/, :acceptable_exit_codes => [0,2] ).twice
       end
+      expect( subject ).to receive( :sign_certificate_for ).once.and_return(true)
+      expect( subject ).to receive( :stop_agent_on ).with( hosts, :run_in_parallel => false ).once
+
       # We wait for puppetdb to restart 3 times; once before the first puppet run, and then during each puppet run
       expect( subject ).to receive( :sleep_until_puppetdb_started ).with( hosts[0] ).exactly(3).times
       #wait for all hosts to appear in the dashboard
@@ -839,11 +890,11 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject ).to receive( :on ).with( hosts[2], /puppet-enterprise-installer/ ).once
       hosts.each do |host|
         expect( subject ).to receive( :configure_type_defaults_on ).with( host ).once
-        expect( subject ).to receive( :sign_certificate_for ).with( host ).once
-        expect( subject ).to receive( :stop_agent_on ).with( host ).once
         # Each puppet agent runs twice, once for the initial run, and once to configure mcollective
         expect( subject ).to receive( :on ).with( host, /puppet agent -t/, :acceptable_exit_codes => [0,2] ).twice
       end
+      expect( subject ).to receive( :sign_certificate_for ).once.and_return(true)
+      expect( subject ).to receive( :stop_agent_on ).with( hosts, :run_in_parallel => false ).once
       #  We wait for puppetdb to restart 3 times; once before the first puppet run, and then during each puppet run
       expect( subject ).to receive( :sleep_until_puppetdb_started ).with( hosts[0] ).exactly(3).times
       #wait for all hosts to appear in the dashboard

@@ -337,6 +337,7 @@ module Beaker
         #                 you use Beaker as the middleman for this (true), or curl the
         #                 file from the host (false; default behavior)
         # @option opts [Boolean] :masterless Are we performing a masterless installation?
+        # @option opts [Array] :run_in_parallel   An array of things to do in parallel 'configure' or 'install'
         #
         # @example
         #  do_install(hosts, {:type => :upgrade, :pe_dir => path, :pe_ver => version, :pe_ver_win =>  version_win})
@@ -413,69 +414,32 @@ module Beaker
             install_hosts.delete(database) if pre30database and database != master and database != dashboard
           end
 
-          install_hosts.each do |host|
-            if agent_only_check_needed && hosts_agent_only.include?(host)
-              host['type'] = 'aio'
-              install_puppet_agent_pe_promoted_repo_on(host, { :puppet_agent_version => host[:puppet_agent_version] || opts[:puppet_agent_version],
-                                                               :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
-                                                               :pe_ver => host[:pe_ver] || opts[:pe_ver],
-                                                               :puppet_collection => host[:puppet_collection] || opts[:puppet_collection] })
-              # 1 since no certificate found and waitforcert disabled
-              acceptable_exit_codes = [0, 1]
-              acceptable_exit_codes << 2 if opts[:type] == :upgrade
-              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
-            elsif host['platform'] =~ /windows/
-              opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
-              msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
-              install_msi_on(host, msi_path, {}, opts)
-
-              # 1 since no certificate found and waitforcert disabled
-              acceptable_exit_codes = 1
-              if masterless
-                configure_type_defaults_on(host)
-                on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
-              else
-                setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
-              end
-            else
-              # We only need answers if we're using the classic installer
-              version = host['pe_ver'] || opts[:pe_ver]
-              if host['roles'].include?('frictionless') &&  (! version_is_less(version, '3.2.0'))
-                # If We're *not* running the classic installer, we want
-                # to make sure the master has packages for us.
-                if host['platform'] != master['platform'] # only need to do this if platform differs
-                  deploy_frictionless_to_master(host)
-                end
-                on host, installer_cmd(host, opts)
-                configure_type_defaults_on(host)
-              elsif host['platform'] =~ /osx|eos/
-                # If we're not frictionless, we need to run the OSX special-case
-                on host, installer_cmd(host, opts)
-                acceptable_codes = host['platform'] =~ /osx/ ? [1] : [0, 1]
-                setup_defaults_and_config_helper_on(host, master, acceptable_codes)
-              else
-                prepare_host_installer_options(host)
-                generate_installer_conf_file_for(host, hosts, opts)
-                on host, installer_cmd(host, opts)
-                configure_type_defaults_on(host)
-              end
+          # If any agents are using frictionless install, install on the master first
+          # and then remove the master from list of hosts to install on.
+          if install_hosts.any? {|host| host[:roles].include?('frictionless') }
+            block_on master do |master|
+              execute_install_cmd(master, hosts, opts)
+              on master, puppet( 'agent -t' ), :acceptable_exit_codes => [0,1,2]
             end
-
-            # On each agent, we ensure the certificate is signed
-            if !masterless
-              if [master, database, dashboard].include?(host) && use_meep?(host['pe_ver'])
-                # This step is not necessary for the core pe nodes when using meep
-              else
-                step "Sign certificate for #{host}" do
-                  sign_certificate_for(host)
-                end
-              end
-            end
-            # then shut down the agent
-            step "Shutting down agent for #{host}" do
-              stop_agent_on(host)
-            end
+            install_hosts.delete(master)
           end
+          run_in_parallel = ((@options && @options[:run_in_parallel].is_a?(Array)) ?
+              @options[:run_in_parallel].include?('install') : opts[:run_in_parallel])
+          block_on install_hosts, { :run_in_parallel => run_in_parallel } do |host|
+            execute_install_cmd(host, hosts, opts)
+          end
+
+          unless masterless
+            block_on install_hosts do |host|
+              if [master, dashboard, database].include? host
+                on host, puppet( 'agent -t' ), :acceptable_exit_codes => [0,1,2]
+              end
+            end
+            # On each agent, we ensure the certificate is signed
+            sign_certificate_for(install_hosts)
+          end
+
+          stop_agent_on(install_hosts, { :run_in_parallel => opts[:run_in_parallel].include?('install') })
 
           unless masterless
             # Wait for PuppetDB to be totally up and running (post 3.0 version of pe only)
@@ -483,7 +447,7 @@ module Beaker
 
             step "First puppet agent run" do
               # Run the agent once to ensure everything is in the dashboard
-              install_hosts.each do |host|
+              block_on install_hosts, { :run_in_parallel => opts[:run_in_parallel].include?('install') } do |host|
                 on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
 
                 # Workaround for PE-1105 when deploying 3.0.0
@@ -501,7 +465,7 @@ module Beaker
               end
             end
 
-            install_hosts.each do |host|
+            block_on install_hosts do |host|
               wait_for_host_in_dashboard(host)
             end
 
@@ -518,11 +482,12 @@ module Beaker
             step "Final puppet agent run" do
               # Now that all hosts are in the dashbaord, run puppet one more
               # time to configure mcollective
-              install_hosts.each do |host|
+              block_on install_hosts, { :run_in_parallel => opts[:run_in_parallel].include?('install') } do |host|
                 on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
-                # To work around PE-14318 if we just ran puppet agent on the
-                # database node we will need to wait until puppetdb is up and
-                # running before continuing
+
+              # To work around PE-14318 if we just ran puppet agent on the
+              # database node we will need to wait until puppetdb is up and
+              # running before continuing
                 if host == database && ! pre30database
                   sleep_until_puppetdb_started(database)
                   check_puppetdb_status_endpoint(database)
@@ -535,7 +500,74 @@ module Beaker
           end
         end
 
-        # True if version is greater than or equal to MEEP_CUTOVER_VERSION (2016.2.0)
+        # Executes the install command on a host
+        # @api private
+        #
+        def execute_install_cmd(host, hosts, opts)
+          masterless = opts[:masterless]
+          pe_versions = ( [] << opts['pe_ver'] << hosts.map{ |host| host['pe_ver'] } ).flatten.compact
+          agent_only_check_needed = version_is_less('3.99', max_version(pe_versions, '3.8'))
+          if agent_only_check_needed
+            hosts_agent_only, hosts_not_agent_only = create_agent_specified_arrays(hosts)
+          else
+            hosts_agent_only, hosts_not_agent_only = [], hosts.dup
+          end
+
+          if agent_only_check_needed && hosts_agent_only.include?(host)
+            host['type'] = 'aio'
+            install_puppet_agent_pe_promoted_repo_on(host, { :puppet_agent_version => host[:puppet_agent_version] || opts[:puppet_agent_version],
+                                                             :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
+                                                             :pe_ver => host[:pe_ver] || opts[:pe_ver],
+                                                             :puppet_collection => host[:puppet_collection] || opts[:puppet_collection] })
+            # 1 since no certificate found and waitforcert disabled
+            acceptable_exit_codes = [0, 1]
+            acceptable_exit_codes << 2 if opts[:type] == :upgrade
+            setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+          elsif host['platform'] =~ /windows/
+            opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
+            msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
+            install_msi_on(host, msi_path, {}, opts)
+
+            # 1 since no certificate found and waitforcert disabled
+            acceptable_exit_codes = 1
+            if masterless
+              configure_type_defaults_on(host)
+              on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
+            else
+              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+            end
+          else
+            # We only need answers if we're using the classic installer
+            version = host['pe_ver'] || opts[:pe_ver]
+            if host['roles'].include?('frictionless') &&  (! version_is_less(version, '3.2.0'))
+              # If We're *not* running the classic installer, we want
+              # to make sure the master has packages for us.
+              if host['platform'] != master['platform'] # only need to do this if platform differs
+                deploy_frictionless_to_master(host)
+              end
+              on host, installer_cmd(host, opts)
+              configure_type_defaults_on(host)
+            elsif host['platform'] =~ /osx|eos/
+              # If we're not frictionless, we need to run the OSX special-case
+              on host, installer_cmd(host, opts)
+              acceptable_codes = host['platform'] =~ /osx/ ? [1] : [0, 1]
+              setup_defaults_and_config_helper_on(host, master, acceptable_codes)
+            else
+              prepare_host_installer_options(host)
+              generate_installer_conf_file_for(host, hosts, opts)
+              on host, installer_cmd(host, opts)
+              configure_type_defaults_on(host)
+            end
+          end
+        end
+
+        # True if version is greater than or equal to 2016.2.0 and the
+        # INSTALLER_TYPE environment variable is 'meep'.
+        #
+        # This will be switched to be true if >= 2016.2.0 and INSTALLER_TYPE !=
+        # 'legacy' once meep is default.
+        #
+        # And then to just >= 2016.2.0 for cutover.
         def use_meep?(version)
           !version_is_less(version, MEEP_CUTOVER_VERSION)
         end
@@ -743,6 +775,7 @@ module Beaker
         #                                 Required for PE agent only hosts on 4.0+
         # @option opts [String] :pe_ver   The version of PE (will also use host['pe_ver']), defaults to '4.0'
         # @option opts [String] :puppet_collection   The puppet collection for puppet-agent install.
+        # @option opts [Array] :run_in_parallel   An array of things to do in parallel 'configure' or 'install'
         #
         # @example
         #  install_pe_on(hosts, {})
@@ -789,6 +822,7 @@ module Beaker
         #                      Will contain a LATEST file indicating the latest build to install.
         #                      This is ignored if a pe_upgrade_ver and pe_upgrade_dir are specified
         #                      in the host configuration file.
+        # @option opts [Array] :run_in_parallel   An array of things to do in parallel 'configure' or 'install'
         # @example
         #  upgrade_pe_on(agents, {}, "http://neptune.puppetlabs.lan/3.0/ci-ready/")
         #
