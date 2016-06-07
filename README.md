@@ -1,6 +1,6 @@
 # beaker-pe
 
-The Puppet Enterprise (PE) Beaker Library
+The Physical Education(PE) Beaker Library
 
 # What is This Thing?
 
