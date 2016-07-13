@@ -531,11 +531,13 @@ module Beaker
 
             if agent_only_check_needed && hosts_agent_only.include?(host) || install_via_msi?(host)
               host['type'] = 'aio'
-              install_puppet_agent_pe_promoted_repo_on(host, { :puppet_agent_version => host[:puppet_agent_version] || opts[:puppet_agent_version],
-                                                               :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
-                                                               :pe_ver => host[:pe_ver] || opts[:pe_ver],
-                                                               :puppet_collection => host[:puppet_collection] || opts[:puppet_collection],
-                                                               :pe_promoted_builds_url => host[:pe_promoted_builds_url] || opts[:pe_promoted_builds_url] })
+              install_puppet_agent_pe_promoted_repo_on(host, {
+                :puppet_agent_version => get_puppet_agent_version(host, opts),
+                :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
+                :pe_ver => host[:pe_ver] || opts[:pe_ver],
+                :puppet_collection => host[:puppet_collection] || opts[:puppet_collection], 
+                :pe_promoted_builds_url => host[:pe_promoted_builds_url] || opts[:pe_promoted_builds_url]
+              })
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = [0, 1]
               acceptable_exit_codes << 2 if opts[:type] == :upgrade
