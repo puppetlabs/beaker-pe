@@ -1202,4 +1202,52 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe '#check_console_status_endpoint' do
+
+    it 'does not do anything if version is less than 2015.2.0' do
+      allow(subject).to receive(:version_is_less).and_return(true)
+
+      global_options = subject.instance_variable_get(:@options)
+      expect(global_options).not_to receive(:[]).with(:pe_console_status_attempts)
+      subject.check_console_status_endpoint({})
+    end
+
+    it 'allows the number of attempts to be configured via the global options' do
+      attempts = 37819
+      options = {:pe_console_status_attempts => attempts}
+      subject.instance_variable_set(:@options, options)
+      allow(subject).to receive(:version_is_less).and_return(false)
+      allow(subject).to receive(:fail_test)
+
+      expect(subject).to receive(:repeat_fibonacci_style_for).with(attempts)
+      subject.check_console_status_endpoint({})
+    end
+
+    it 'yields false to repeat_fibonacci_style_for when conditions are not true' do
+      subject.instance_variable_set(:@options, {})
+      allow(subject).to receive(:version_is_less).and_return(false)
+      allow(subject).to receive(:sleep)
+
+      output_hash = {
+        'classifier-service' => {}
+      }
+      output_stub = Object.new
+      allow(output_stub).to receive(:stdout)
+      expect(subject).to receive(:on).exactly(9).times.and_return(output_stub)
+      allow(JSON).to receive(:parse).and_return(output_hash)
+      allow(subject).to receive(:fail_test)
+      subject.check_console_status_endpoint({})
+    end
+
+    it 'calls fail_test when no checks pass' do
+      subject.instance_variable_set(:@options, {})
+      allow(subject).to receive(:version_is_less).and_return(false)
+
+      allow(subject).to receive(:repeat_fibonacci_style_for).and_return(false)
+      expect(subject).to receive(:fail_test)
+      subject.check_console_status_endpoint({})
+    end
+
+  end
+
 end

@@ -702,23 +702,30 @@ module Beaker
           fail_test "PuppetDB took too long to start"
         end
 
+        # Checks Console Status Endpoint, failing the test if the
+        # endpoints don't report a running state.
+        #
+        # @param [Host] host Host to check status on
+        #
+        # @note Uses the global option's :pe_console_status_attempts
+        #   value to determine how many times it's going to retry the
+        #   check with fibonacci back offs.
+        #
+        # @return nil
         def check_console_status_endpoint(host)
-          if version_is_less(host['pe_ver'], '2015.2.0')
-            return true
-          end
-          Timeout.timeout(60) do
-            match = nil
-            while not match
+          return true if version_is_less(host['pe_ver'], '2015.2.0')
+
+          attempts_limit = @options[:pe_console_status_attempts] || 9
+          step 'Check Console Status Endpoint' do
+            match = repeat_fibonacci_style_for(attempts_limit) do
               output = on(host, "curl -s -k https://localhost:4433/status/v1/services --cert /etc/puppetlabs/puppet/ssl/certs/#{host}.pem --key /etc/puppetlabs/puppet/ssl/private_keys/#{host}.pem --cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem", :accept_all_exit_codes => true)
               output = JSON.parse(output.stdout)
               match = output['classifier-service']['state'] == 'running'
               match = match && output['rbac-service']['state'] == 'running'
-              match = match && output['activity-service']['state'] == 'running'
-              sleep 1
+              match && output['activity-service']['state'] == 'running'
             end
+            fail_test 'Console services took too long to start' if !match
           end
-        rescue Timeout::Error
-          fail_test "Console services took too long to start"
         end
 
         #Install PE based upon host configuration and options
