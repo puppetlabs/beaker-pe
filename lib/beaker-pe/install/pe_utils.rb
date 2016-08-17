@@ -719,10 +719,14 @@ module Beaker
           step 'Check Console Status Endpoint' do
             match = repeat_fibonacci_style_for(attempts_limit) do
               output = on(host, "curl -s -k https://localhost:4433/status/v1/services --cert /etc/puppetlabs/puppet/ssl/certs/#{host}.pem --key /etc/puppetlabs/puppet/ssl/private_keys/#{host}.pem --cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem", :accept_all_exit_codes => true)
-              output = JSON.parse(output.stdout)
-              match = output['classifier-service']['state'] == 'running'
-              match = match && output['rbac-service']['state'] == 'running'
-              match && output['activity-service']['state'] == 'running'
+              begin
+                output = JSON.parse(output.stdout)
+                match = output['classifier-service']['state'] == 'running'
+                match = match && output['rbac-service']['state'] == 'running'
+                match && output['activity-service']['state'] == 'running'
+              rescue JSON::ParserError
+                false
+              end
             end
             fail_test 'Console services took too long to start' if !match
           end

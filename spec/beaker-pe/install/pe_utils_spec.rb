@@ -1239,6 +1239,19 @@ describe ClassMixedWithDSLInstallUtils do
       subject.check_console_status_endpoint({})
     end
 
+    it 'yields false to repeat_fibonacci_style_for when JSON::ParserError occurs' do
+      subject.instance_variable_set(:@options, {})
+      allow(subject).to receive(:version_is_less).and_return(false)
+      allow(subject).to receive(:sleep)
+
+      output_stub = Object.new
+      # empty string causes JSON::ParserError
+      allow(output_stub).to receive(:stdout).and_return('')
+      expect(subject).to receive(:on).exactly(9).times.and_return(output_stub)
+      allow(subject).to receive(:fail_test)
+      subject.check_console_status_endpoint({})
+    end
+
     it 'calls fail_test when no checks pass' do
       subject.instance_variable_set(:@options, {})
       allow(subject).to receive(:version_is_less).and_return(false)
