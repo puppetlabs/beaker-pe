@@ -48,12 +48,17 @@ module Beaker
 
             if package_name
               case host['platform']
-              when /windows/
-                generic_install_msi_on(host, File.join(release_path, package_name), {}, {:debug => true})
+                when /windows/
+                  release_path = opts[:local_package] if opts[:local_package]
+                  generic_install_msi_on(host, File.join(release_path, package_name), {}, {:debug => true})
               else
-                copy_dir_local = File.join('tmp', 'repo_configs')
-                fetch_http_file(release_path, package_name, copy_dir_local)
-                scp_to host, File.join(copy_dir_local, package_name), host.external_copy_base
+                if opts[:local_package]
+                  package_location = opts[:local_package]
+                else
+                  package_location = File.join('tmp', 'repo_configs', package_name)
+                  fetch_http_file(release_path, package_name, copy_dir_local)
+                end
+                scp_to host, package_location, host.external_copy_base
 
                 if host['platform'] =~ /debian|ubuntu|cumulus|huaweios/
                   on host, "dpkg -i #{package_name}"
