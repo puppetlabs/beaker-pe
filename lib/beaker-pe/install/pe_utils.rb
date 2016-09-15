@@ -414,15 +414,31 @@ module Beaker
             install_hosts.delete(database) if pre30database and database != master and database != dashboard
           end
 
-          # If any agents are using frictionless install, install on the master first
-          # and then remove the master from list of hosts to install on.
-          if install_hosts.any? {|host| host[:roles].include?('frictionless') }
+          # If any agents are using frictionless install, OR it is a split install, install on
+          # the master first and then remove the master from list of hosts to install on.
+          if !masterless && ( any_hosts_as?('frictionless') || !master[:roles].include?('database'))
             block_on master do |master|
               execute_install_cmd(master, hosts, opts)
-              on master, puppet( 'agent -t' ), :acceptable_exit_codes => [0,1,2]
             end
             install_hosts.delete(master)
           end
+          if !masterless && !master[:roles].include?('database')
+            # If it is a split install, install database then dashboard
+            # then remove them from the list of hosts to install on
+            database_node = only_host_with_role(install_hosts, 'database')
+            dashboard_node = only_host_with_role(install_hosts, 'dashboard')
+            [database_node, dashboard_node].each do |node_to_install|
+              block_on node_to_install do |node|
+                execute_install_cmd(node, hosts, opts)
+              end
+              install_hosts.delete(node_to_install)
+            end
+          end
+
+          if !masterless && ( any_hosts_as?('frictionless') || !master[:roles].include?('database'))
+            on master, puppet( 'agent -t' ), :acceptable_exit_codes => [0,1,2]
+          end
+
           run_in_parallel = ((@options && @options[:run_in_parallel].is_a?(Array)) ?
               @options[:run_in_parallel].include?('install') : opts[:run_in_parallel])
           block_on install_hosts, { :run_in_parallel => run_in_parallel } do |host|

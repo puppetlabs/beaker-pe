@@ -755,7 +755,8 @@ describe ClassMixedWithDSLInstallUtils do
       #run rake task on dashboard
 
       expect( subject ).to receive( :on ).with( hosts[0], /\/opt\/puppet\/bin\/rake -sf \/opt\/puppet\/share\/puppet-dashboard\/Rakefile .* RAILS_ENV=production/ ).once
-      expect( subject ).to receive( :block_on ).with( hosts, :run_in_parallel => true ).exactly(3).times
+      expect( subject ).to receive( :block_on ).with( hosts, :run_in_parallel => ["configure", "install"] ).once
+      expect( subject ).to receive( :block_on ).with( hosts, :run_in_parallel => true ).twice
       expect( subject ).to receive( :block_on ).with( hosts ).twice
 
       hosts.each do |host|
