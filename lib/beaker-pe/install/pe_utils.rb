@@ -336,7 +336,6 @@ module Beaker
         # @option opts [Boolean] :fetch_local_then_push_to_host determines whether
         #                 you use Beaker as the middleman for this (true), or curl the
         #                 file from the host (false; default behavior)
-        # @option opts [Boolean] :masterless Are we performing a masterless installation?
         # @option opts [Array] :run_in_parallel   An array of things to do in parallel 'configure' or 'install'
         #
         # @example
@@ -351,12 +350,10 @@ module Beaker
         # @api private
         #
         def do_install hosts, opts = {}
-          masterless = opts[:masterless]
           opts[:type] = opts[:type] || :install
-          unless masterless
-            pre30database = version_is_less(opts[:pe_ver] || database['pe_ver'], '3.0')
-            pre30master = version_is_less(opts[:pe_ver] || master['pe_ver'], '3.0')
-          end
+
+          pre30database = version_is_less(opts[:pe_ver] || database['pe_ver'], '3.0')
+          pre30master = version_is_less(opts[:pe_ver] || master['pe_ver'], '3.0')
 
           pe_versions = ( [] << opts['pe_ver'] << hosts.map{ |host| host['pe_ver'] } ).flatten.compact
           agent_only_check_needed = version_is_less('3.99', max_version(pe_versions, '3.8'))
@@ -409,20 +406,16 @@ module Beaker
           fetch_pe(hosts_not_agent_only, opts)
 
           install_hosts = hosts.dup
-          unless masterless
-            # If we're installing a database version less than 3.0, ignore the database host
-            install_hosts.delete(database) if pre30database and database != master and database != dashboard
-          end
 
-          # If any agents are using frictionless install, OR it is a split install, install on
-          # the master first and then remove the master from list of hosts to install on.
-          if !masterless && ( any_hosts_as?('frictionless') || !master[:roles].include?('database'))
-            block_on master do |master|
-              execute_install_cmd(master, hosts, opts)
-            end
-            install_hosts.delete(master)
+          # If we're installing a database version less than 3.0, ignore the database host
+          install_hosts.delete(database) if pre30database and database != master and database != dashboard
+
+          # Master must be installed first or cert requests won't be successful during agent installs.
+          block_on master do |master|
+            execute_install_cmd(master, hosts, opts)
           end
-          if !masterless && !master[:roles].include?('database')
+          install_hosts.delete(master)
+          if !master[:roles].include?('database')
             # If it is a split install, install database then dashboard
             # then remove them from the list of hosts to install on
             database_node = only_host_with_role(install_hosts, 'database')
@@ -435,7 +428,7 @@ module Beaker
             end
           end
 
-          if !masterless && ( any_hosts_as?('frictionless') || !master[:roles].include?('database'))
+          if any_hosts_as?('frictionless') || !master[:roles].include?('database')
             on master, puppet( 'agent -t' ), :acceptable_exit_codes => [0,1,2]
           end
 
@@ -445,72 +438,70 @@ module Beaker
             execute_install_cmd(host, hosts, opts)
           end
 
-          unless masterless
-            block_on install_hosts do |host|
-              if [master, dashboard, database].include? host
-                on host, puppet( 'agent -t' ), :acceptable_exit_codes => [0,1,2]
-              end
+          run_in_parallel = ((@options && @options[:run_in_parallel].is_a?(Array)) ?
+              @options[:run_in_parallel].include?('install') : opts[:run_in_parallel])
+          block_on install_hosts, { :run_in_parallel => run_in_parallel } do |host|
+            if [master, dashboard, database].include? host
+              on host, puppet( 'agent -t' ), :acceptable_exit_codes => [0,1,2]
             end
-            # On each agent, we ensure the certificate is signed
-            sign_certificate_for(install_hosts)
           end
+          # On each agent, we ensure the certificate is signed
+          sign_certificate_for(install_hosts)
 
           stop_agent_on(install_hosts, { :run_in_parallel => opts[:run_in_parallel].include?('install') })
 
-          unless masterless
-            # Wait for PuppetDB to be totally up and running (post 3.0 version of pe only)
-            sleep_until_puppetdb_started(database) unless pre30database
+          # Wait for PuppetDB to be totally up and running (post 3.0 version of pe only)
+          sleep_until_puppetdb_started(database) unless pre30database
 
-            step "First puppet agent run" do
-              # Run the agent once to ensure everything is in the dashboard
-              block_on install_hosts, { :run_in_parallel => opts[:run_in_parallel].include?('install') } do |host|
-                on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
+          step "First puppet agent run" do
+            # Run the agent once to ensure everything is in the dashboard
+            block_on install_hosts, { :run_in_parallel => opts[:run_in_parallel].include?('install') } do |host|
+              on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
 
-                # Workaround for PE-1105 when deploying 3.0.0
-                # The installer did not respect our database host answers in 3.0.0,
-                # and would cause puppetdb to be bounced by the agent run. By sleeping
-                # again here, we ensure that if that bounce happens during an upgrade
-                # test we won't fail early in the install process.
-                if host == database && ! pre30database
-                  sleep_until_puppetdb_started(database)
-                  check_puppetdb_status_endpoint(database)
-                end
-                if host == dashboard
-                  check_console_status_endpoint(host)
-                end
+              # Workaround for PE-1105 when deploying 3.0.0
+              # The installer did not respect our database host answers in 3.0.0,
+              # and would cause puppetdb to be bounced by the agent run. By sleeping
+              # again here, we ensure that if that bounce happens during an upgrade
+              # test we won't fail early in the install process.
+              if host == database && ! pre30database
+                sleep_until_puppetdb_started(database)
+                check_puppetdb_status_endpoint(database)
+              end
+              if host == dashboard
+                check_console_status_endpoint(host)
               end
             end
+          end
 
-            block_on install_hosts do |host|
-              wait_for_host_in_dashboard(host)
+          block_on install_hosts do |host|
+            wait_for_host_in_dashboard(host)
+          end
+
+          # only appropriate for pre-3.9 builds
+          if version_is_less(master[:pe_ver], '3.99')
+            if pre30master
+              task = 'nodegroup:add_all_nodes group=default'
+            else
+              task = 'defaultgroup:ensure_default_group'
             end
+            on dashboard, "/opt/puppet/bin/rake -sf /opt/puppet/share/puppet-dashboard/Rakefile #{task} RAILS_ENV=production"
+          end
 
-            # only appropriate for pre-3.9 builds
-            if version_is_less(master[:pe_ver], '3.99')
-              if pre30master
-                task = 'nodegroup:add_all_nodes group=default'
-              else
-                task = 'defaultgroup:ensure_default_group'
+          step "Final puppet agent run" do
+            # Now that all hosts are in the dashbaord, run puppet one more
+            # time to configure mcollective
+            block_on install_hosts, { :run_in_parallel => opts[:run_in_parallel].include?('install') } do |host|
+              on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
+
+            # To work around PE-14318 if we just ran puppet agent on the
+            # database node we will need to wait until puppetdb is up and
+            # running before continuing
+              if host == database && ! pre30database
+                sleep_until_puppetdb_started(database)
+                check_puppetdb_status_endpoint(database)
               end
-              on dashboard, "/opt/puppet/bin/rake -sf /opt/puppet/share/puppet-dashboard/Rakefile #{task} RAILS_ENV=production"
-            end
-
-            step "Final puppet agent run" do
-              # Now that all hosts are in the dashbaord, run puppet one more
-              # time to configure mcollective
-              block_on install_hosts, { :run_in_parallel => opts[:run_in_parallel].include?('install') } do |host|
-                on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
-
-              # To work around PE-14318 if we just ran puppet agent on the
-              # database node we will need to wait until puppetdb is up and
-              # running before continuing
-                if host == database && ! pre30database
-                  sleep_until_puppetdb_started(database)
-                  check_puppetdb_status_endpoint(database)
-                end
-                if host == dashboard
-                  check_console_status_endpoint(host)
-                end
+              if host == dashboard
+                check_console_status_endpoint(host)
               end
             end
           end
@@ -520,7 +511,6 @@ module Beaker
         # @api private
         #
         def execute_install_cmd(host, hosts, opts)
-          masterless = opts[:masterless]
           pe_versions = ( [] << opts['pe_ver'] << hosts.map{ |host| host['pe_ver'] } ).flatten.compact
           agent_only_check_needed = version_is_less('3.99', max_version(pe_versions, '3.8'))
           if agent_only_check_needed
@@ -546,12 +536,8 @@ module Beaker
 
             # 1 since no certificate found and waitforcert disabled
             acceptable_exit_codes = 1
-            if masterless
-              configure_type_defaults_on(host)
-              on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
-            else
-              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
-            end
+
+            setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
           else
             # We only need answers if we're using the classic installer
             version = host['pe_ver'] || opts[:pe_ver]
@@ -784,7 +770,6 @@ module Beaker
         #
         # @param [Host, Array<Host>] install_hosts    One or more hosts to act upon
         # @!macro common_opts
-        # @option opts [Boolean] :masterless Are we performing a masterless installation?
         # @option opts [String] :puppet_agent_version  Version of puppet-agent to install. Required for PE agent
         #                                 only hosts on 4.0+
         # @option opts [String] :puppet_agent_sha The sha of puppet-agent to install, defaults to puppet_agent_version.
@@ -804,6 +789,7 @@ module Beaker
         #   options, refer to {#do_install} documentation
         #
         def install_pe_on(install_hosts, opts)
+          raise RuntimeError.new 'masterless installs are not supported by install_pe.  Use install_puppet or call install_puppet_agent_on directly' if opts[:masterless]
           confine_block(:to, {}, install_hosts) do
             sorted_hosts.each do |host|
               #process the version files if necessary
@@ -811,7 +797,7 @@ module Beaker
               if host['platform'] =~ /windows/
                 # we don't need the pe_version if:
                 # * master pe_ver > 4.0
-                if not (!opts[:masterless] && master[:pe_ver] && !version_is_less(master[:pe_ver], '3.99'))
+                if master[:pe_ver] && version_is_less(master[:pe_ver], '3.99')
                   host['pe_ver'] ||= Beaker::Options::PEVersionScraper.load_pe_version(host[:pe_dir] || opts[:pe_dir], opts[:pe_version_file_win])
                 else
                   # inherit the master's version
