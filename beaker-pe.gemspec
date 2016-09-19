@@ -32,6 +32,8 @@ Gem::Specification.new do |s|
 
   # Run time dependencies
   s.add_runtime_dependency 'stringify-hash', '~> 0.0.0'
+  # Specific version managed in Beaker gemspec
+  s.add_runtime_dependency 'in-parallel'
 
 end
 
