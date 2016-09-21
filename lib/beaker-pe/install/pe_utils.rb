@@ -96,12 +96,15 @@ module Beaker
             end
 
             pe_debug = host[:pe_debug] || opts[:pe_debug] ? ' -x' : ''
-            if host['platform'] =~ /aix/ then
+            if host['platform'] =~ /windows/ then
+              "powershell -c \"cd #{host['working_dir']};[Net.ServicePointManager]::ServerCertificateValidationCallback = {\\$true};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{master}:8140/packages/#{version}/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}\""
+            elsif host['platform'] =~ /aix/ then
               curl_opts = '--tlsv1 -O'
+              "cd #{host['working_dir']} && curl #{curl_opts} https://#{master}:8140/packages/#{version}/install.bash && bash#{pe_debug} install.bash #{frictionless_install_opts.join(' ')}".strip
             else
               curl_opts = '--tlsv1 -kO'
+              "cd #{host['working_dir']} && curl #{curl_opts} https://#{master}:8140/packages/#{version}/install.bash && bash#{pe_debug} install.bash #{frictionless_install_opts.join(' ')}".strip
             end
-            "cd #{host['working_dir']} && curl #{curl_opts} https://#{master}:8140/packages/#{version}/install.bash && bash#{pe_debug} install.bash #{frictionless_install_opts.join(' ')}".strip
           elsif host['platform'] =~ /osx/
             version = host['pe_ver'] || opts[:pe_ver]
             pe_debug = host[:pe_debug] || opts[:pe_debug] ? ' -verboseR' : ''
@@ -283,7 +286,15 @@ module Beaker
         # @api private
         def deploy_frictionless_to_master(host)
           klass = host['platform'].gsub(/-/, '_').gsub(/\./,'')
-          klass = "pe_repo::platform::#{klass}"
+          if host['platform'] =~ /windows/
+            if host['template'] =~ /i386/
+              klass = "pe_repo::platform::windows_i386"
+            else
+              klass = "pe_repo::platform::windows_x86_64"
+            end
+          else
+            klass = "pe_repo::platform::#{klass}"
+          end
           if version_is_less(host['pe_ver'], '3.8')
             # use the old rake tasks
             on dashboard, "cd /opt/puppet/share/puppet-dashboard && /opt/puppet/bin/bundle exec /opt/puppet/bin/rake nodeclass:add[#{klass},skip]"
@@ -414,7 +425,10 @@ module Beaker
           end
 
           install_hosts.each do |host|
-            if agent_only_check_needed && hosts_agent_only.include?(host)
+            #windows agents from 4.0 -> 2016.1.2 were only installable via aio method
+            is_windows_msi_and_aio = (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.3.0') && !version_is_less(host['pe_ver'], '3.99') && !(host['roles'].include?('frictionless'))))
+
+            if agent_only_check_needed && hosts_agent_only.include?(host) || is_windows_msi_and_aio
               host['type'] = 'aio'
               install_puppet_agent_pe_promoted_repo_on(host, { :puppet_agent_version => host[:puppet_agent_version] || opts[:puppet_agent_version],
                                                                :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
@@ -424,7 +438,8 @@ module Beaker
               acceptable_exit_codes = [0, 1]
               acceptable_exit_codes << 2 if opts[:type] == :upgrade
               setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
-            elsif host['platform'] =~ /windows/
+            #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
+            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')))
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
               msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
               install_msi_on(host, msi_path, {}, opts)
@@ -460,7 +475,6 @@ module Beaker
                 configure_type_defaults_on(host)
               end
             end
-
             # On each agent, we ensure the certificate is signed
             if !masterless
               if [master, database, dashboard].include?(host) && use_meep?(host['pe_ver'])
@@ -497,6 +511,11 @@ module Beaker
                 end
                 if host == dashboard
                   check_console_status_endpoint(host)
+                end
+                #Workaround for windows frictionless install, see BKR-943 for the reason
+                if (host['platform'] =~ /windows/) and (host['roles'].include? 'frictionless')
+                  client_datadir = host.puppet['client_datadir']
+                  on(host , puppet("resource file \"#{client_datadir}\" ensure=absent force=true"))
                 end
               end
             end
