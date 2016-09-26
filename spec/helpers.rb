@@ -83,6 +83,7 @@ module HostHelpers
     host = make_opts.merge(host_hash)
 
     allow(host).to receive( :name ).and_return( name )
+    allow(host).to receive( :hostname ).and_return( "#{name}.test" )
     allow(host).to receive( :to_s ).and_return( name )
     allow(host).to receive( :exec ).and_return( generate_result( name, host_hash ) )
     host

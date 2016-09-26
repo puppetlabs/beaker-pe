@@ -2,6 +2,8 @@
     require "beaker/dsl/install_utils/#{lib}"
 end
 require "beaker-answers"
+require "timeout"
+require "json"
 module Beaker
   module DSL
     module InstallUtils
@@ -20,6 +22,9 @@ module Beaker
         include PEDefaults
         include PuppetUtils
         include WindowsUtils
+
+        # Version of PE when we switched from legacy installer to MEEP.
+        MEEP_CUTOVER_VERSION = '2016.2.0'
 
         # @!macro [new] common_opts
         #   @param [Hash{Symbol=>String}] opts Options to alter execution.
@@ -105,7 +110,19 @@ module Beaker
             host.install_from_file("puppet-enterprise-#{version}-#{host['platform']}.swix")
           else
             pe_debug = host[:pe_debug] || opts[:pe_debug]  ? ' -D' : ''
-            "cd #{host['working_dir']}/#{host['dist']} && ./#{host['pe_installer']}#{pe_debug} -a #{host['working_dir']}/answers"
+            pe_cmd = "cd #{host['working_dir']}/#{host['dist']} && ./#{host['pe_installer']}#{pe_debug}"
+            if ! version_is_less(host['pe_ver'], '2016.2.1')
+              # -y option sets "assume yes" mode where yes or whatever default will be assumed
+              pe_cmd += " -y"
+            end
+
+            # If there are no answer overrides, and we are doing an upgrade from 2016.2.0,
+            # we can assume there will be a valid pe.conf in /etc that we can re-use.
+            if opts[:answers].nil? && opts[:custom_answers].nil? && opts[:type] == :upgrade && !version_is_less(opts[:HOSTS][host.name][:pe_ver], '2016.2.0')
+              "#{pe_cmd}"
+            else
+              "#{pe_cmd} #{host['pe_installer_conf_setting']}"
+            end
           end
         end
 
@@ -348,6 +365,11 @@ module Beaker
             hosts_agent_only, hosts_not_agent_only = [], hosts.dup
           end
 
+          # On July 8th, 2016, the GPG key used to sign repos inside PE tarballs
+          # expired. Add a temporary, extended key to the host first so that it
+          # can still install those old PE tarballs.
+          add_extended_gpg_key_to_hosts(hosts, opts)
+
           # Set PE distribution for all the hosts, create working dir
           use_all_tar = ENV['PE_USE_ALL_TAR'] == 'true'
           hosts.each do |host|
@@ -437,33 +459,50 @@ module Beaker
                 acceptable_codes = host['platform'] =~ /osx/ ? [1] : [0, 1]
                 setup_defaults_and_config_helper_on(host, master, acceptable_codes)
               else
-                answers = BeakerAnswers::Answers.create(opts[:pe_ver] || host['pe_ver'], hosts, opts)
-                create_remote_file host, "#{host['working_dir']}/answers", answers.answer_string(host)
+                prepare_host_installer_options(host)
+                generate_installer_conf_file_for(host, hosts, opts)
                 on host, installer_cmd(host, opts)
                 configure_type_defaults_on(host)
               end
             end
 
-            # On each agent, we ensure the certificate is signed then shut down the agent
-            sign_certificate_for(host) unless masterless
-            stop_agent_on(host)
+            # On each agent, we ensure the certificate is signed
+            if !masterless
+              if [master, database, dashboard].include?(host) && use_meep?(host['pe_ver'])
+                # This step is not necessary for the core pe nodes when using meep
+              else
+                step "Sign certificate for #{host}" do
+                  sign_certificate_for(host)
+                end
+              end
+            end
+            # then shut down the agent
+            step "Shutting down agent for #{host}" do
+              stop_agent_on(host)
+            end
           end
 
           unless masterless
             # Wait for PuppetDB to be totally up and running (post 3.0 version of pe only)
             sleep_until_puppetdb_started(database) unless pre30database
 
-            # Run the agent once to ensure everything is in the dashboard
-            install_hosts.each do |host|
-              on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
+            step "First puppet agent run" do
+              # Run the agent once to ensure everything is in the dashboard
+              install_hosts.each do |host|
+                on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
 
-              # Workaround for PE-1105 when deploying 3.0.0
-              # The installer did not respect our database host answers in 3.0.0,
-              # and would cause puppetdb to be bounced by the agent run. By sleeping
-              # again here, we ensure that if that bounce happens during an upgrade
-              # test we won't fail early in the install process.
-              if host['pe_ver'] == '3.0.0' and host == database
-                sleep_until_puppetdb_started(database)
+                # Workaround for PE-1105 when deploying 3.0.0
+                # The installer did not respect our database host answers in 3.0.0,
+                # and would cause puppetdb to be bounced by the agent run. By sleeping
+                # again here, we ensure that if that bounce happens during an upgrade
+                # test we won't fail early in the install process.
+                if host == database && ! pre30database
+                  sleep_until_puppetdb_started(database)
+                  check_puppetdb_status_endpoint(database)
+                end
+                if host == dashboard
+                  check_console_status_endpoint(host)
+                end
               end
             end
 
@@ -481,10 +520,120 @@ module Beaker
               on dashboard, "/opt/puppet/bin/rake -sf /opt/puppet/share/puppet-dashboard/Rakefile #{task} RAILS_ENV=production"
             end
 
-            # Now that all hosts are in the dashbaord, run puppet one more
-            # time to configure mcollective
-            on install_hosts, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
+            step "Final puppet agent run" do
+              # Now that all hosts are in the dashbaord, run puppet one more
+              # time to configure mcollective
+              install_hosts.each do |host|
+                on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
+                # To work around PE-14318 if we just ran puppet agent on the
+                # database node we will need to wait until puppetdb is up and
+                # running before continuing
+                if host == database && ! pre30database
+                  sleep_until_puppetdb_started(database)
+                  check_puppetdb_status_endpoint(database)
+                end
+                if host == dashboard
+                  check_console_status_endpoint(host)
+                end
+              end
+            end
           end
+        end
+
+        # True if version is greater than or equal to MEEP_CUTOVER_VERSION (2016.2.0)
+        def use_meep?(version)
+          !version_is_less(version, MEEP_CUTOVER_VERSION)
+        end
+
+        # On July 8th, 2016, the gpg key that was shipped and used to sign repos in
+        # PE tarballs expired. This affects all PE version earlier then 3.8.5, and
+        # versions between 2015.2 to 2016.1.2.
+        #
+        # PE 3.8.5 and 2016.1.2 shipped with a version of the key that had it's
+        # expiration date extended by 6 months (to Janurary 2017).
+        def add_extended_gpg_key_to_hosts(hosts, opts)
+          hosts.each do |host|
+            # RPM based platforms do not seem to be effected by an expired GPG key,
+            # while deb based platforms are failing.
+            if host['platform'] =~ /debian|ubuntu/
+              host_ver = host['pe_ver'] || opts['pe_ver']
+
+              if version_is_less(host_ver, '3.8.5') || (!version_is_less(host_ver, '2015.2.0') && version_is_less(host_ver, '2016.1.2'))
+                on(host, 'curl http://apt.puppetlabs.com/pubkey.gpg | apt-key add -')
+              end
+            end
+          end
+        end
+
+        # Set installer options on the passed *host* according to current
+        # version.
+        #
+        # Sets:
+        #   * 'pe_installer_conf_file'
+        #   * 'pe_installer_conf_setting'
+        #
+        # @param [Beaker::Host] host The host object to configure
+        # @return [Beaker::Host] The same host object passed in
+        def prepare_host_installer_options(host)
+          if use_meep?(host['pe_ver'])
+            conf_file = "#{host['working_dir']}/pe.conf"
+            host['pe_installer_conf_file'] = conf_file
+            host['pe_installer_conf_setting'] = "-c #{conf_file}"
+          else
+            conf_file = "#{host['working_dir']}/answers"
+            host['pe_installer_conf_file'] = conf_file
+            host['pe_installer_conf_setting'] = "-a #{conf_file}"
+          end
+          host
+        end
+
+        # Adds in settings needed by BeakerAnswers:
+        #
+        # * :format => :bash or :hiera depending on which legacy or meep format we need
+        # * :include_legacy_database_defaults => true or false.  True
+        #   indicates that we are upgrading from a legacy version and
+        #   BeakerAnswers should include the database defaults for user
+        #   which were set for the legacy install.
+        #
+        # @param [Beaker::Host] host that we are generating answers for
+        # @param [Hash] opts The Beaker options hash
+        # @return [Hash] a dup of the opts hash with additional settings for BeakerAnswers
+        def setup_beaker_answers_opts(host, opts)
+          beaker_answers_opts = use_meep?(host['pe_ver']) ?
+            { :format => :hiera } :
+            { :format => :bash }
+
+          beaker_answers_opts[:include_legacy_database_defaults] =
+            opts[:type] == :upgrade && !use_meep?(host['previous_pe_ver'])
+
+          opts.merge(beaker_answers_opts)
+        end
+
+        # Generates a Beaker Answers object for the passed *host* and creates
+        # the answer or pe.conf configuration file on the *host* needed for
+        # installation.
+        #
+        # Expects the host['pe_installer_conf_file'] to have been set, which is
+        # where the configuration will be written to, and will run MEEP or legacy
+        # depending on host[:pe_ver]
+        #
+        # @param [Beaker::Host] host The host to create a configuration file on
+        # @param [Array<Beaker::Host]> hosts All of the hosts to be configured
+        # @param [Hash] opts The Beaker options hash
+        # @return [BeakerAnswers::Answers] the generated answers object
+        def generate_installer_conf_file_for(host, hosts, opts)
+          beaker_answers_opts = setup_beaker_answers_opts(host, opts)
+          answers = BeakerAnswers::Answers.create(
+            opts[:pe_ver] || host['pe_ver'], hosts, beaker_answers_opts
+          )
+          configuration = answers.installer_configuration_string(host)
+
+          step "Generate the #{host['pe_installer_conf_file']} on #{host}" do
+            logger.debug(configuration)
+            create_remote_file(host, host['pe_installer_conf_file'], configuration)
+          end
+
+          answers
         end
 
         # Builds the agent_only and not_agent_only arrays needed for installation.
@@ -540,6 +689,52 @@ module Beaker
         #@see #install_pe_on
         def install_pe
           install_pe_on(hosts, options)
+        end
+
+        def check_puppetdb_status_endpoint(host)
+          if version_is_less(host['pe_ver'], '2016.1.0')
+            return true
+          end
+          Timeout.timeout(60) do
+            match = nil
+            while not match
+              output = on(host, "curl -s http://localhost:8080/pdb/meta/v1/version", :accept_all_exit_codes => true)
+              match = output.stdout =~ /version.*\d+\.\d+\.\d+/
+              sleep 1
+            end
+          end
+        rescue Timeout::Error
+          fail_test "PuppetDB took too long to start"
+        end
+
+        # Checks Console Status Endpoint, failing the test if the
+        # endpoints don't report a running state.
+        #
+        # @param [Host] host Host to check status on
+        #
+        # @note Uses the global option's :pe_console_status_attempts
+        #   value to determine how many times it's going to retry the
+        #   check with fibonacci back offs.
+        #
+        # @return nil
+        def check_console_status_endpoint(host)
+          return true if version_is_less(host['pe_ver'], '2015.2.0')
+
+          attempts_limit = options[:pe_console_status_attempts] || 9
+          step 'Check Console Status Endpoint' do
+            match = repeat_fibonacci_style_for(attempts_limit) do
+              output = on(host, "curl -s -k https://localhost:4433/status/v1/services --cert /etc/puppetlabs/puppet/ssl/certs/#{host}.pem --key /etc/puppetlabs/puppet/ssl/private_keys/#{host}.pem --cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem", :accept_all_exit_codes => true)
+              begin
+                output = JSON.parse(output.stdout)
+                match = output['classifier-service']['state'] == 'running'
+                match = match && output['rbac-service']['state'] == 'running'
+                match && output['activity-service']['state'] == 'running'
+              rescue JSON::ParserError
+                false
+              end
+            end
+            fail_test 'Console services took too long to start' if !match
+          end
         end
 
         #Install PE based upon host configuration and options
@@ -613,20 +808,34 @@ module Beaker
             end
             # get new version information
             hosts.each do |host|
-              host['pe_dir'] = host['pe_upgrade_dir'] || path
-              if host['platform'] =~ /windows/
-                host['pe_ver'] = host['pe_upgrade_ver'] || opts['pe_upgrade_ver'] ||
-                  Options::PEVersionScraper.load_pe_version(host['pe_dir'], opts[:pe_version_file_win])
-              else
-                host['pe_ver'] = host['pe_upgrade_ver'] || opts['pe_upgrade_ver'] ||
-                  Options::PEVersionScraper.load_pe_version(host['pe_dir'], opts[:pe_version_file])
-              end
-              if version_is_less(host['pe_ver'], '3.0')
-                host['pe_installer'] ||= 'puppet-enterprise-upgrader'
-              end
+              prep_host_for_upgrade(host, opts, path)
             end
             do_install(sorted_hosts, opts.merge({:type => :upgrade, :set_console_password => set_console_password}))
             opts['upgrade'] = true
+          end
+        end
+
+        #Prep a host object for upgrade; used inside upgrade_pe_on
+        # @param [Host] host A single host object to prepare for upgrade
+        # !macro common_opts
+        # @param [String] path A path (either local directory or a URL to a listing of PE builds).
+        #                      Will contain a LATEST file indicating the latest build to install.
+        #                      This is ignored if a pe_upgrade_ver and pe_upgrade_dir are specified
+        #                      in the host configuration file.
+        # @example
+        #  prep_host_for_upgrade(master, {}, "http://neptune.puppetlabs.lan/3.0/ci-ready/")
+        def prep_host_for_upgrade(host, opts={}, path='')
+          host['pe_dir'] = host['pe_upgrade_dir'] || path
+          host['previous_pe_ver'] = host['pe_ver']
+          if host['platform'] =~ /windows/
+            host['pe_ver'] = host['pe_upgrade_ver'] || opts['pe_upgrade_ver'] ||
+              Options::PEVersionScraper.load_pe_version(host['pe_dir'], opts[:pe_version_file_win])
+          else
+            host['pe_ver'] = host['pe_upgrade_ver'] || opts['pe_upgrade_ver'] ||
+              Options::PEVersionScraper.load_pe_version(host['pe_dir'], opts[:pe_version_file])
+          end
+          if version_is_less(host['pe_ver'], '3.0')
+            host['pe_installer'] ||= 'puppet-enterprise-upgrader'
           end
         end
 
@@ -636,9 +845,8 @@ module Beaker
         #                    The host object must have the 'working_dir', 'dist' and 'pe_installer' field set correctly.
         # @api private
         def higgs_installer_cmd host
-
-          "cd #{host['working_dir']}/#{host['dist']} ; nohup ./#{host['pe_installer']} <<<Y > #{host['higgs_file']} 2>&1 &"
-
+          higgs_answer = use_meep?(host['pe_ver']) ? '1' : 'Y'
+          "cd #{host['working_dir']}/#{host['dist']} ; nohup ./#{host['pe_installer']} <<<#{higgs_answer} > #{host['higgs_file']} 2>&1 &"
         end
 
         #Perform a Puppet Enterprise Higgs install up until web browser interaction is required, runs on linux hosts only.
@@ -671,6 +879,8 @@ module Beaker
           fetch_pe([host], opts)
 
           host['higgs_file'] = "higgs_#{File.basename(host['working_dir'])}.log"
+
+          prepare_host_installer_options(host)
           on host, higgs_installer_cmd(host), opts
 
           #wait for output to host['higgs_file']
