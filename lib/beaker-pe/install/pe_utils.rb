@@ -554,7 +554,7 @@ module Beaker
               host_ver = host['pe_ver'] || opts['pe_ver']
 
               if version_is_less(host_ver, '3.8.5') || (!version_is_less(host_ver, '2015.2.0') && version_is_less(host_ver, '2016.1.2'))
-                on(host, 'curl http://apt.puppetlabs.com/pubkey.gpg | apt-key add -')
+                on(host, 'curl http://apt.puppetlabs.com/DEB-GPG-KEY-puppetlabs | apt-key add -')
               end
             end
           end

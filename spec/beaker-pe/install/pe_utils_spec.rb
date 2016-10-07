@@ -445,7 +445,7 @@ describe ClassMixedWithDSLInstallUtils do
   end
 
   describe 'add_extended_gpg_key_to_hosts' do
-    let(:on_cmd) { 'curl http://apt.puppetlabs.com/pubkey.gpg | apt-key add -' }
+    let(:on_cmd) { 'curl http://apt.puppetlabs.com/DEB-GPG-KEY-puppetlabs | apt-key add -' }
     let(:deb_host) do
       host = hosts.first
       host['platform'] = 'debian'
