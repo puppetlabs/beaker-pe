@@ -17,6 +17,9 @@ that help someone acceptance test PE easier with Beaker.
 technical reference for APIs and other aspects of beaker-pe. They describe
 how it works and how to use it but assume that you have a basic understanding
 of key concepts.
+- [How-to guides](docs/how_to) are recipes. They guide you through the steps
+involved in addressing key problems and use-cases. For instance, checkout our
+[How-to Install Puppet Enterprise doc](docs/how_to/install_puppet_enterprise.md).
 
 # Upgrading from 0.y to 1.y?
 
