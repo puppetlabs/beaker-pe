@@ -444,6 +444,7 @@ module Beaker
               acceptable_exit_codes << 2 if opts[:type] == :upgrade
               if masterless
                 configure_type_defaults_on(host)
+                on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
               else
                 setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
               end
