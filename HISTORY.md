@@ -1,6 +1,14 @@
 # default - History
 ## Tags
-* [LATEST - 16 Sep, 2016 (d16e0bc1)](#LATEST)
+* [LATEST - 22 Nov, 2016 (4b812f78)](#LATEST)
+* [1.6.0 - 16 Nov, 2016 (0da1b64c)](#1.6.0)
+* [1.5.0 - 7 Nov, 2016 (24d78992)](#1.5.0)
+* [1.4.0 - 11 Oct, 2016 (6becdbb2)](#1.4.0)
+* [1.3.0 - 6 Oct, 2016 (97f781bb)](#1.3.0)
+* [1.2.0 - 4 Oct, 2016 (7362ab78)](#1.2.0)
+* [1.1.0 - 29 Sep, 2016 (5b9f2600)](#1.1.0)
+* [1.0.0 - 26 Sep, 2016 (84a5b56b)](#1.0.0)
+* [0.12.0 - 16 Sep, 2016 (81e5a0b0)](#0.12.0)
 * [0.11.0 - 25 Aug, 2016 (7167f39e)](#0.11.0)
 * [0.10.1 - 24 Aug, 2016 (97adf276)](#0.10.1)
 * [0.10.0 - 23 Aug, 2016 (b8eff18f)](#0.10.0)
@@ -17,7 +25,296 @@
 * [0.1.0 - 29 Feb, 2016 (4fc88d8c)](#0.1.0)
 
 ## Details
-### <a name = "LATEST">LATEST - 16 Sep, 2016 (d16e0bc1)
+### <a name = "LATEST">LATEST - 22 Nov, 2016 (4b812f78)
+
+* (GEM) update beaker-pe version to 1.6.1 (4b812f78)
+
+* Merge pull request #39 from james-stocks/BKR-967 (2d17d83f)
+
+
+```
+Merge pull request #39 from james-stocks/BKR-967
+
+Revert "(BKR-967) Add :disable_analytics option"
+```
+* Revert "(BKR-967) Add :disable_analytics option" (a9fdaacb)
+
+
+```
+Revert "(BKR-967) Add :disable_analytics option"
+
+This reverts commit c9e25658e8cd282e1676d723131946268e308579.
+
+This commit is not useful because it is blocking analytics from the console host;
+but analytics are sent from the user browser and not the console host.
+```
+### <a name = "1.6.0">1.6.0 - 16 Nov, 2016 (0da1b64c)
+
+* (HISTORY) update beaker-pe history for gem release 1.6.0 (0da1b64c)
+
+* (GEM) update beaker-pe version to 1.6.0 (9d6d30e0)
+
+* Merge pull request #40 from jpartlow/issue/master/pe-18516-always-set-pe-conf-for-upgrades (ace43aca)
+
+
+```
+Merge pull request #40 from jpartlow/issue/master/pe-18516-always-set-pe-conf-for-upgrades
+
+(PE-18516,PE-18170) Temporarily set pe.conf when upgrading to Flanders
+```
+* (PE-18516,PE-18170) Temporarily set pe.conf when upgrading to Flanders (9df782ee)
+
+
+```
+(PE-18516,PE-18170) Temporarily set pe.conf when upgrading to Flanders
+
+At the moment, MEEP does not create a 2.0 pe.conf when recovering
+configuration for an upgrade.  This is preventing all upgrade tests from
+PE >= 2016.2 (when meep was introduced) to PE >= 2017.1 from completing
+because meep ends up using a 1.0 pe.conf that has no node_roles. Without
+the node_roles information, the node is not considered infrastructure,
+and meep's enc returns no classes for it, so nothing happens in the
+upgrade apply.
+
+This is not currently a problem upgrading from < 2016.2 because
+beaker-pe is providing the beaker-answers pe.conf in those cases.
+
+To work around this, I've added a check, just if we are upgrading to a
+Flanders version, which supplies the beaker-answers generated pe.conf.
+
+This patch is just intended to get upgrades from earlier meep versions
+working in CI. When we get to PE-18170 (also scheduled for Flanders)
+we'll work on improving recover configuration to generate a 2.0 pe.conf,
+with the goal being that beaker-answers should not need to provide
+anything for pe.conf for Flanders upgrades unless some additional
+parameters were added in the beaker configuration.
+```
+* Merge pull request #38 from kevpl/docs_README_fill (d8546812)
+
+
+```
+Merge pull request #38 from kevpl/docs_README_fill
+
+(MAINT) fill README doc & MAINTAINERS
+```
+* (MAINT) fill README doc & MAINTAINERS (23a40aba)
+
+
+```
+(MAINT) fill README doc & MAINTAINERS
+
+[skip ci]
+```
+### <a name = "1.5.0">1.5.0 - 7 Nov, 2016 (24d78992)
+
+* (HISTORY) update beaker-pe history for gem release 1.5.0 (24d78992)
+
+* (GEM) update beaker-pe version to 1.5.0 (614c736b)
+
+* Merge pull request #36 from james-stocks/BKR-967 (e4a48b7c)
+
+
+```
+Merge pull request #36 from james-stocks/BKR-967
+
+(BKR-967) Add :disable_analytics option
+```
+* (BKR-967) Add :disable_analytics option (c9e25658)
+
+
+```
+(BKR-967) Add :disable_analytics option
+
+Allow :disable_analytics to be set in beaker options, allowing us to block
+traffic to Google Analytics.
+```
+### <a name = "1.4.0">1.4.0 - 11 Oct, 2016 (6becdbb2)
+
+* (HISTORY) update beaker-pe history for gem release 1.4.0 (6becdbb2)
+
+* (GEM) update beaker-pe version to 1.4.0 (2c31bfcb)
+
+* Merge pull request #34 from phongdly/PE-17825/Higgs_Automation (52921be8)
+
+
+```
+Merge pull request #34 from phongdly/PE-17825/Higgs_Automation
+
+(PE-17825) Update do_higgs_install method with new installation log
+```
+* (PE-17825) added older version compability (d4d16462)
+
+
+```
+(PE-17825) added older version compability
+
+[skip ci]
+```
+* (PE-17825) Update do_higgs_install method with new installation log (f17b5091)
+
+
+```
+(PE-17825) Update do_higgs_install method with new installation log
+
+Prior to this PR, the PE the do_higgs_install method waits for the below PE installation log:
+"Please go to https://higgs_installer_web_server:3000 in your browser to continue installation"
+
+However, newer PE, for example in Davis builds, that line of log has changed to be:
+"#Go to  https://higgs_installer_web_server:3000 in your browser to continue installation"
+
+This PR is a simple fix for this by only searching for the substring:
+"o to  https://higgs_installer_web_server:3000 in your browser to continue installation"
+```
+### <a name = "1.3.0">1.3.0 - 6 Oct, 2016 (97f781bb)
+
+* (HISTORY) update beaker-pe history for gem release 1.3.0 (97f781bb)
+
+* (GEM) update beaker-pe version to 1.3.0 (24d8b969)
+
+* Merge pull request #32 from cthorn42/main/master/PE-17359_fix_windows_frictionless_upgrade (8feaaf0f)
+
+
+```
+Merge pull request #32 from cthorn42/main/master/PE-17359_fix_windows_frictionless_upgrade
+
+PE-17359 Fix windows frictionless upgrades
+```
+* Merge pull request #33 from tvpartytonight/BKR-953 (e53e018a)
+
+
+```
+Merge pull request #33 from tvpartytonight/BKR-953
+
+(BKR-953) Stop including the dsl at the top level
+```
+* (BKR-953) Stop including the dsl at the top level (12823a51)
+
+
+```
+(BKR-953) Stop including the dsl at the top level
+
+To reload the beaker dsl after adding modules to it, beaker-pe had just
+included the module into the top level namespace. This resulted in
+errors loading in other libraries not expecting the dsl to be loaded at
+the top level. This commit changes that inclusion mechanism to be safe
+from namespace collisions.
+```
+* PE-17359 Fix windows frictionless upgrades (883e4df5)
+
+
+```
+PE-17359 Fix windows frictionless upgrades
+
+There was an error with my previous PR. PE 2016.2.1 to PE 2016.4.0
+were failing because the PE 2016.2.1 install of the windows agent
+would attempt to install via frictionless, and not with the old msi
+method.
+This PR fixes this.
+```
+### <a name = "1.2.0">1.2.0 - 4 Oct, 2016 (7362ab78)
+
+* (HISTORY) update beaker-pe history for gem release 1.2.0 (7362ab78)
+
+* (GEM) update beaker-pe version to 1.2.0 (bab690e0)
+
+* (PE-17359) Adding Windows frictionless agent support (#28) (f4b72e18)
+
+
+```
+(PE-17359) Adding Windows frictionless agent support (#28)
+
+This commit adds support for windows frictionless agent.
+There was a change to the pe_repo logic, to make sure the master
+downloads the new windows script.
+Also there is the addition of a powershell script, which is the
+direct equivlant of curl | bash.
+```
+### <a name = "1.1.0">1.1.0 - 29 Sep, 2016 (5b9f2600)
+
+* (HISTORY) update beaker-pe history for gem release 1.1.0 (5b9f2600)
+
+* (GEM) update beaker-pe version to 1.1.0 (e4576973)
+
+* Merge pull request #31 from tvpartytonight/pe_17658_update_gpg_key (60a293f3)
+
+
+```
+Merge pull request #31 from tvpartytonight/pe_17658_update_gpg_key
+
+(PE-17658) Update gpg key location
+```
+* (PE-17658) Update gpg key location (5824f76d)
+
+
+```
+(PE-17658) Update gpg key location
+
+Prior to this change, beaker-pe was downloading
+an expired key: pubkey.gpg, which caused packages
+to fail authentication on debian platforms (ubuntu).
+
+This commit updates the key we're getting to
+DEB-GPG-KEY-puppetlabs which is still valid.
+```
+* Merge pull request #29 from tvpartytonight/BKR-945_add_beakerpe_acceptance (ac814a9a)
+
+
+```
+Merge pull request #29 from tvpartytonight/BKR-945_add_beakerpe_acceptance
+
+(BKR-945) Add acceptance tests to beaker-pe
+```
+* (BKR-945) Add acceptance tests to beaker-pe (cf0bf446)
+
+
+```
+(BKR-945) Add acceptance tests to beaker-pe
+
+Previous to this commit, we relied on tests that existed within the
+beaker repo to test functionality that actually resided within
+beaker-pe. This change adds those tests to beaker-pe, so they can be
+removed beaker itself.
+```
+### <a name = "1.0.0">1.0.0 - 26 Sep, 2016 (84a5b56b)
+
+* (HISTORY) update beaker-pe history for gem release 1.0.0 (84a5b56b)
+
+* (GEM) update beaker-pe version to 1.0.0 (0f384656)
+
+* Merge pull request #27 from kevpl/bkr941_beaker-pe_1.0 (55d48b15)
+
+
+```
+Merge pull request #27 from kevpl/bkr941_beaker-pe_1.0
+
+(BKR-941) beaker-pe 1.0 changes
+```
+* (BKR-941) update scooter dependency (c124fef9)
+
+* (BKR-941) update beaker dependency (faea2843)
+
+
+```
+(BKR-941) update beaker dependency
+
+Since beaker-pe 1.0 will be using the new inclusion mechanism
+of including itself in beaker's DSL, it shouldn't allow itself
+to be used with beaker < 3.0.
+```
+* (BKR-941) beaker-pe 1.0 changes (2a05be9f)
+
+
+```
+(BKR-941) beaker-pe 1.0 changes
+
+These are the changes required to update beaker-pe to
+its first major version. These changes are done to use
+the beaker 3.0 DSL library inclusion mechanism, pulling
+the current beaker-pe requirement out of beaker itself
+```
+### <a name = "0.12.0">0.12.0 - 16 Sep, 2016 (81e5a0b0)
+
+* (HISTORY) update beaker-pe history for gem release 0.12.0 (81e5a0b0)
 
 * (GEM) update beaker-pe version to 0.12.0 (d16e0bc1)
 

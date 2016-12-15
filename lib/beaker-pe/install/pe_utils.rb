@@ -96,12 +96,15 @@ module Beaker
             end
 
             pe_debug = host[:pe_debug] || opts[:pe_debug] ? ' -x' : ''
-            if host['platform'] =~ /aix/ then
+            if host['platform'] =~ /windows/ then
+              "powershell -c \"cd #{host['working_dir']};[Net.ServicePointManager]::ServerCertificateValidationCallback = {\\$true};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{master}:8140/packages/#{version}/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}\""
+            elsif host['platform'] =~ /aix/ then
               curl_opts = '--tlsv1 -O'
+              "cd #{host['working_dir']} && curl #{curl_opts} https://#{master}:8140/packages/#{version}/install.bash && bash#{pe_debug} install.bash #{frictionless_install_opts.join(' ')}".strip
             else
               curl_opts = '--tlsv1 -kO'
+              "cd #{host['working_dir']} && curl #{curl_opts} https://#{master}:8140/packages/#{version}/install.bash && bash#{pe_debug} install.bash #{frictionless_install_opts.join(' ')}".strip
             end
-            "cd #{host['working_dir']} && curl #{curl_opts} https://#{master}:8140/packages/#{version}/install.bash && bash#{pe_debug} install.bash #{frictionless_install_opts.join(' ')}".strip
           elsif host['platform'] =~ /osx/
             version = host['pe_ver'] || opts[:pe_ver]
             pe_debug = host[:pe_debug] || opts[:pe_debug] ? ' -verboseR' : ''
@@ -116,9 +119,13 @@ module Beaker
               pe_cmd += " -y"
             end
 
+            # This is a temporary workaround for PE-18516, because MEEP does not yet create a 2.0
+            # pe.conf when recovering configuration in Flanders. This will be fixed in PE-18170.
+            if opts[:type] == :upgrade && !version_is_less(host['pe_upgrade_ver'], '2017.1.0')
+              "#{pe_cmd} #{host['pe_installer_conf_setting']}"
             # If there are no answer overrides, and we are doing an upgrade from 2016.2.0,
             # we can assume there will be a valid pe.conf in /etc that we can re-use.
-            if opts[:answers].nil? && opts[:custom_answers].nil? && opts[:type] == :upgrade && !version_is_less(opts[:HOSTS][host.name][:pe_ver], '2016.2.0')
+            elsif opts[:answers].nil? && opts[:custom_answers].nil? && opts[:type] == :upgrade && !version_is_less(opts[:HOSTS][host.name][:pe_ver], '2016.2.0')
               "#{pe_cmd}"
             else
               "#{pe_cmd} #{host['pe_installer_conf_setting']}"
@@ -283,7 +290,15 @@ module Beaker
         # @api private
         def deploy_frictionless_to_master(host)
           klass = host['platform'].gsub(/-/, '_').gsub(/\./,'')
-          klass = "pe_repo::platform::#{klass}"
+          if host['platform'] =~ /windows/
+            if host['template'] =~ /i386/
+              klass = "pe_repo::platform::windows_i386"
+            else
+              klass = "pe_repo::platform::windows_x86_64"
+            end
+          else
+            klass = "pe_repo::platform::#{klass}"
+          end
           if version_is_less(host['pe_ver'], '3.8')
             # use the old rake tasks
             on dashboard, "cd /opt/puppet/share/puppet-dashboard && /opt/puppet/bin/bundle exec /opt/puppet/bin/rake nodeclass:add[#{klass},skip]"
@@ -414,7 +429,10 @@ module Beaker
           end
 
           install_hosts.each do |host|
-            if agent_only_check_needed && hosts_agent_only.include?(host)
+            #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
+            is_windows_msi_and_aio = (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.3.0') && !version_is_less(host['pe_ver'], '3.99')))
+
+            if agent_only_check_needed && hosts_agent_only.include?(host) || is_windows_msi_and_aio
               host['type'] = 'aio'
               install_puppet_agent_pe_promoted_repo_on(host, { :puppet_agent_version => host[:puppet_agent_version] || opts[:puppet_agent_version],
                                                                :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
@@ -429,7 +447,8 @@ module Beaker
               else
                 setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
               end
-            elsif host['platform'] =~ /windows/
+            #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
+            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')))
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
               msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
               install_msi_on(host, msi_path, {}, opts)
@@ -465,7 +484,6 @@ module Beaker
                 configure_type_defaults_on(host)
               end
             end
-
             # On each agent, we ensure the certificate is signed
             if !masterless
               if [master, database, dashboard].include?(host) && use_meep?(host['pe_ver'])
@@ -502,6 +520,11 @@ module Beaker
                 end
                 if host == dashboard
                   check_console_status_endpoint(host)
+                end
+                #Workaround for windows frictionless install, see BKR-943 for the reason
+                if (host['platform'] =~ /windows/) and (host['roles'].include? 'frictionless')
+                  client_datadir = host.puppet['client_datadir']
+                  on(host , puppet("resource file \"#{client_datadir}\" ensure=absent force=true"))
                 end
               end
             end
@@ -559,7 +582,7 @@ module Beaker
               host_ver = host['pe_ver'] || opts['pe_ver']
 
               if version_is_less(host_ver, '3.8.5') || (!version_is_less(host_ver, '2015.2.0') && version_is_less(host_ver, '2016.1.2'))
-                on(host, 'curl http://apt.puppetlabs.com/pubkey.gpg | apt-key add -')
+                on(host, 'curl http://apt.puppetlabs.com/DEB-GPG-KEY-puppetlabs | apt-key add -')
               end
             end
           end
@@ -885,7 +908,11 @@ module Beaker
 
           #wait for output to host['higgs_file']
           #we're all done when we find this line in the PE installation log
-          higgs_re = /Please\s+go\s+to\s+https:\/\/.*\s+in\s+your\s+browser\s+to\s+continue\s+installation/m
+          if version_is_less(opts[:pe_ver] || host['pe_ver'], '2016.3')
+            higgs_re = /Please\s+go\s+to\s+https:\/\/.*\s+in\s+your\s+browser\s+to\s+continue\s+installation/m
+          else
+            higgs_re = /o\s+to\s+https:\/\/.*\s+in\s+your\s+browser\s+to\s+continue\s+installation/m
+          end
           res = Result.new(host, 'tmp cmd')
           tries = 10
           attempts = 0

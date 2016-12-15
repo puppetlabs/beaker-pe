@@ -19,13 +19,16 @@ module Beaker
 end
 
 
-# This is commented out because Beaker is going to include this
-# library itself until version 3.0.
-# # Boilerplate DSL inclusion mechanism:
-# # First we register our module with the Beaker DSL
-# Beaker::DSL.register( Beaker::DSL::PE )
-# # Then we have to re-include our amended DSL in the TestCase,
-# # because in general, the DSL is included in TestCase far
-# # before test files are executed, so our amendments wouldn't
-# # come through otherwise
-# include Beaker::DSL
+# Boilerplate DSL inclusion mechanism:
+# First we register our module with the Beaker DSL
+Beaker::DSL.register( Beaker::DSL::PE )
+
+# Second,We need to reload the DSL, but before we had reloaded
+# it in the global namespace, which result in errors colliding
+# with other gems rightfully not expecting beaker's dsl to
+# be available at the global level.
+module Beaker
+  class TestCase
+    include Beaker::DSL
+  end
+end

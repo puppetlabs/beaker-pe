@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "file_format": "This MAINTAINERS file format is described at http://pup.pt/maintainers",
+  "issues": "https://tickets.puppet.com/browse/PE",
+  "internal_list": "https://groups.google.com/a/puppet.com/forum/?hl=en#!forum/discuss-organizational-scale",
+  "people": [
+    {
+      "github": "kevpl",
+      "email": "ki@puppet.com",
+      "name": "Kevin Imber"
+    },
+    {
+      "github": "tvpartytonight",
+      "email": "tv@puppet.com",
+      "name": "Tony Vu"
+    },
+    {
+      "github": "jpartlow",
+      "email": "joshua.partlow@puppet.com",
+      "name": "Josh Partlow"
+    },
+    {
+      "github": "demophoon",
+      "email": "britt@puppet.com",
+      "name": "Britt Gresham"
+    },
+    {
+      "github": "highb",
+      "email": "brandon.high@puppet.com",
+      "name": "Brandon High"
+    },
+    {
+      "github": "ericwilliamson",
+      "email": "eric.williamson@puppet.com",
+      "name": "Eric Williamson"
+    }
+  ]
+}

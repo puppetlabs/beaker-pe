@@ -445,7 +445,7 @@ describe ClassMixedWithDSLInstallUtils do
   end
 
   describe 'add_extended_gpg_key_to_hosts' do
-    let(:on_cmd) { 'curl http://apt.puppetlabs.com/pubkey.gpg | apt-key add -' }
+    let(:on_cmd) { 'curl http://apt.puppetlabs.com/DEB-GPG-KEY-puppetlabs | apt-key add -' }
     let(:deb_host) do
       host = hosts.first
       host['platform'] = 'debian'
@@ -860,10 +860,11 @@ describe ClassMixedWithDSLInstallUtils do
 
     it 'sets puppet-agent acceptable_exit_codes correctly for config helper on upgrade' do
       hosts = make_hosts({
-                           :previous_pe_ver => '3.0',
-                           :pe_ver => '4.0',
-                           :roles => ['agent'],
-                         }, 2)
+        :previous_pe_ver => '3.0',
+        :pe_ver => '4.0',
+        :pe_upgrade_ver => '4.0',
+        :roles => ['agent'],
+      }, 2)
       hosts[0][:roles] = ['master', 'database', 'dashboard']
       hosts[1][:platform] = Beaker::Platform.new('el-6-x86_64')
       opts[:HOSTS] = {}
@@ -893,8 +894,14 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :create_remote_file ).with( hosts[0], /answers/, /q/ )
       #run installer on all hosts
       allow( subject ).to receive( :on ).with( hosts[0], /puppet-enterprise-installer/ )
-      allow( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with( hosts[1],
-                                                                                      {:puppet_agent_version=>nil, :puppet_agent_sha=>nil, :pe_ver=>hosts[1][:pe_ver], :puppet_collection=>nil} )
+      allow( subject ).to receive(
+        :install_puppet_agent_pe_promoted_repo_on
+      ).with( hosts[1], {
+        :puppet_agent_version => nil,
+        :puppet_agent_sha     => nil,
+        :pe_ver               => hosts[1][:pe_ver],
+        :puppet_collection    => nil
+      } )
       # expect( subject ).to receive( :on ).with( hosts[2], /puppet-enterprise-installer/ ).once
       hosts.each do |host|
         allow( subject ).to receive( :add_pe_defaults_on ).with( host ) unless subject.aio_version?(host)
