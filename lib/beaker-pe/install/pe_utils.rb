@@ -397,10 +397,8 @@ module Beaker
           end
 
           install_hosts.each do |host|
-            #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
-            is_windows_msi_and_aio = (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.3.0') && !version_is_less(host['pe_ver'], '3.99')))
 
-            if agent_only_check_needed && hosts_agent_only.include?(host) || is_windows_msi_and_aio
+            if agent_only_check_needed && hosts_agent_only.include?(host) || install_via_msi?(host)
               host['type'] = 'aio'
               install_puppet_agent_pe_promoted_repo_on(host, {
                 :puppet_agent_version => get_puppet_agent_version(host, opts),
@@ -413,7 +411,7 @@ module Beaker
               acceptable_exit_codes << 2 if opts[:type] == :upgrade
               setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
             #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
-            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')))
+            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')) || install_via_msi?(host))
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
               msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
               install_msi_on(host, msi_path, {}, opts)
@@ -613,6 +611,15 @@ module Beaker
         # True if version is greater than or equal to MEEP_CUTOVER_VERSION (2016.2.0)
         def use_meep?(version)
           !version_is_less(version, MEEP_CUTOVER_VERSION)
+        end
+
+        # Check if windows host is able to frictionlessly install puppet
+        # @param [Beaker::Host] host that we are checking if it is possible to install frictionlessly to
+        # @return [Boolean] true if frictionless is supported and not affected by known bugs
+        def install_via_msi?(host)
+          #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
+          #powershell2 bug was fixed in PE 2016.4.3
+          (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) || (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99')))
         end
 
         # On July 8th, 2016, the gpg key that was shipped and used to sign repos in

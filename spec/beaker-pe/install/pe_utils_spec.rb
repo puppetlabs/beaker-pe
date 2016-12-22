@@ -251,6 +251,38 @@ describe ClassMixedWithDSLInstallUtils do
       the_host[:pe_debug] = true
       expect( subject.installer_cmd( the_host, {} ) ).to be === "cd /tmp && curl --tlsv1 -kO https://testmaster:8140/packages/3.8.0/install.bash && bash -x install.bash"
     end
+  end
+
+  describe 'install_via_msi?' do
+    it 'returns true if pe_version is before PE 2016.4.0' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['pe_ver'] = '2015.2.3'
+      expect(subject.install_via_msi?(the_host)).to eq(true)
+    end
+
+    it 'returns nil if pe_version is PE 2016.4.0 or newer' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['pe_ver'] = '2016.4.2'
+      expect(subject.install_via_msi?(the_host)).to be nil
+    end
+
+    it 'returns true if pe_version is 2016.4.0 and platform is windows-2008r2 bug' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['platform'] = 'windows-2008r2'
+      the_host['pe_ver'] = '2016.4.0'
+      expect(subject.install_via_msi?(the_host)).to eq(true)
+    end
+
+    it 'returns false if pe_version is 2016.4.3 and platform is windows-2008r2 bug' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['platform'] = 'windows-2008r2'
+      the_host['pe_ver'] = '2016.4.3'
+      expect(subject.install_via_msi?(the_host)).to eq(false)
+    end
 
   end
 
