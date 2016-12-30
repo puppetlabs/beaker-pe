@@ -578,11 +578,11 @@ module Beaker
         end
 
         # Gets the puppet-agent version, hopefully from the host or local options.
-        # Will fall back to reading the `aio_agent_build` property on the master
+        # Will fall back to reading the `aio_agent_version` property on the master
         # if neither of those two options are passed
         #
         # @note This method does have a side-effect: if it reads the
-        #   `aio_agent_build` property from master, it will store it in the local
+        #   `aio_agent_version` property from master, it will store it in the local
         #   options hash so that it won't have to do this more than once.
         #
         # @param [Beaker::Host] host Host to get puppet-agent for
@@ -600,9 +600,7 @@ module Beaker
           facts_result = on(master, 'puppet facts')
           raise ArgumentError, fail_message if facts_result.exit_code != 0
           facts_hash = JSON.parse(facts_result.stdout.chomp)
-          puppet_agent_version   = facts_hash['values']['aio_agent_build']
-          # released masters don't have _build fact, fallback to _version
-          puppet_agent_version ||= facts_hash['values']['aio_agent_version']
+          puppet_agent_version = facts_hash['values']['aio_agent_version']
           raise ArgumentError, fail_message if puppet_agent_version.nil?
           logger.warn("#{log_prefix} Read puppet-agent version #{puppet_agent_version} from master")
           # saving so that we don't have to query the master more than once

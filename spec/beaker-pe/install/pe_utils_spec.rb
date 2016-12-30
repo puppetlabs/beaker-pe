@@ -1323,7 +1323,7 @@ describe ClassMixedWithDSLInstallUtils do
         json_hash    = mock_values[:json_hash]
         pa_version   = mock_values[:pa_version]
         pa_version ||= 'pa_version_' + rand(10 ** 5).to_s.rjust(5,'0') # 5 digit random number string
-        json_hash  ||= "{ \"values\": { \"aio_agent_build\": \"#{pa_version}\" }}"
+        json_hash  ||= "{ \"values\": { \"aio_agent_version\": \"#{pa_version}\" }}"
 
         allow( subject ).to receive( :master ).and_return( {} )
         result_mock = Object.new
@@ -1345,11 +1345,6 @@ describe ClassMixedWithDSLInstallUtils do
         expect( local_options_hash[:puppet_agent_version] ).to be === pa_version
       end
 
-      it 'falls back on aio_agent_version if _build is not available' do
-        pa_version = 'your_face_13587'
-        test_setup( :json_hash => "{ \"values\": { \"aio_agent_version\": \"#{pa_version}\" }}" )
-        expect( subject.get_puppet_agent_version( {} ) ).to be === pa_version
-      end
     end
 
     context 'failures' do
