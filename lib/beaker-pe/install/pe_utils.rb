@@ -177,7 +177,6 @@ module Beaker
         def fetch_pe_on_windows(host, opts)
           path = host['pe_dir'] || opts[:pe_dir]
           local = File.directory?(path)
-          version = host['pe_ver'] || opts[:pe_ver_win]
           filename = "#{host['dist']}"
           extension = ".msi"
           if local
