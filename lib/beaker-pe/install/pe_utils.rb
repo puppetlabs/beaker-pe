@@ -26,6 +26,14 @@ module Beaker
 
         # Version of PE when we switched from legacy installer to MEEP.
         MEEP_CUTOVER_VERSION = '2016.2.0'
+        # Version of PE when we switched to using meep for classification
+        # instead of PE node groups
+        MEEP_CLASSIFICATION_VERSION = '2017.2.0'
+        # PE-18799 temporary default used for meep classification check while
+        # we navigate the switchover.
+        # PE-18718 switch flag to true once beaker-pe, beaker-answers,
+        # beaker-pe-large-environments and pe_acceptance_tests are ready
+        DEFAULT_MEEP_CLASSIFICATION = false
 
         # @!macro [new] common_opts
         #   @param [Hash{Symbol=>String}] opts Options to alter execution.
@@ -628,6 +636,31 @@ module Beaker
           #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
           #powershell2 bug was fixed in PE 2016.4.3
           (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) || (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99')))
+        end
+
+        # True if version is greater than or equal to MEEP_CLASSIFICATION_VERSION
+        # (PE-18718) AND the temporary feature flag is true.
+        #
+        # The temporary feature flag is pe_modules_next and can be set in
+        # the :answers hash given in beaker's host.cfg, inside a feature_flags
+        # hash. It will also be picked up from the environment as
+        # PE_MODULES_NEXT. (See register_feature_flags!())
+        #
+        # The :answers hash value will take precedence over the env variable.
+        #
+        # @param version String the current PE version
+        # @param opts Hash options hash to inspect for :answers
+        # @return Boolean true if version and flag allows for meep classification
+        #   feature.
+        def use_meep_for_classification?(version, opts)
+          # PE-19470 remove vv
+          register_feature_flags!(opts)
+
+          temporary_flag = feature_flag?('pe_modules_next', opts)
+          temporary_flag = DEFAULT_MEEP_CLASSIFICATION if temporary_flag.nil?
+          # ^^
+
+          !version_is_less(version, MEEP_CLASSIFICATION_VERSION) && temporary_flag
         end
 
         # For PE 3.8.5 to PE 2016.1.2 they have an expired gpg key. This method is
