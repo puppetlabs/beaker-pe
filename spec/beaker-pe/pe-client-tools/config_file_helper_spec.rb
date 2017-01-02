@@ -1,5 +1,4 @@
 require 'spec_helper'
-require 'beaker'
 
 class MixedWithConfigFileHelper
   include Beaker::DSL::PEClientTools::ConfigFileHelper

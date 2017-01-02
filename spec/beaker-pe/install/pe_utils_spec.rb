@@ -1,5 +1,4 @@
 require 'spec_helper'
-require 'beaker'
 
 class ClassMixedWithDSLInstallUtils
   include Beaker::DSL::InstallUtils

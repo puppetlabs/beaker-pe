@@ -1,5 +1,4 @@
 require 'spec_helper'
-require 'beaker'
 
 class MixedWithExecutableHelper
   include Beaker::DSL::PEClientTools::ExecutableHelper
