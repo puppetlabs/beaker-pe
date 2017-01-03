@@ -310,19 +310,12 @@ module Beaker
             on dashboard, "cd /opt/puppet/share/puppet-dashboard && /opt/puppet/bin/bundle exec /opt/puppet/bin/rake node:addclass[#{master},#{klass}]"
             on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
           else
-            # the new hotness
-            begin
-              require 'scooter'
-            rescue LoadError => e
-              @logger.notify('WARNING: gem scooter is required for frictionless installation post 3.8')
-              raise e
-            end
-            dispatcher = Scooter::HttpDispatchers::ConsoleDispatcher.new(dashboard)
+            _console_dispatcher = get_console_dispatcher_for_beaker_pe!
 
             # Check if we've already created a frictionless agent node group
             # to avoid errors creating the same node group when the beaker hosts file contains
             # multiple hosts with the same platform
-            node_group = dispatcher.get_node_group_by_name('Beaker Frictionless Agent')
+            node_group = _console_dispatcher.get_node_group_by_name('Beaker Frictionless Agent')
             if node_group.nil? || node_group.empty?
               node_group = {}
               node_group['name'] = "Beaker Frictionless Agent"
@@ -334,7 +327,7 @@ module Beaker
             # add the pe_repo platform class
             node_group['classes'][klass] = {}
 
-            dispatcher.create_new_node_group_model(node_group)
+            _console_dispatcher.create_new_node_group_model(node_group)
             on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
           end
         end
@@ -1092,6 +1085,30 @@ module Beaker
           scp_to host, "#{local_dir}/#{filename}#{extension}", host['working_dir']
         end
 
+        # Being able to modify PE's classifier requires the Scooter gem and
+        # helpers which are in beaker-pe-large-environments.
+        def get_console_dispatcher_for_beaker_pe(raise_exception = false)
+          if !respond_to?(:get_dispatcher)
+            begin
+              # just in case scooter is present but beaker-pe-large-environments is not
+              # ...most likely this will raise a LoadError...
+              require 'scooter'
+              Scooter::HttpDispatchers::ConsoleDispatcher.new(dashboard)
+            rescue LoadError => e
+              logger.notify('WARNING: gem scooter is required for frictionless installation post 3.8')
+              raise e if raise_exception
+
+              return nil
+            end
+          else
+            get_dispatcher
+          end
+        end
+
+        # Will raise a LoadError if unable to require Scooter.
+        def get_console_dispatcher_for_beaker_pe!
+          get_console_dispatcher_for_beaker_pe(true)
+        end
       end
     end
   end

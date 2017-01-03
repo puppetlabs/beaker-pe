@@ -1602,4 +1602,18 @@ describe ClassMixedWithDSLInstallUtils do
       end
     end
   end
+
+  describe 'get_console_dispatcher_for_beaker_pe' do
+    it { expect(subject.get_console_dispatcher_for_beaker_pe).to be_nil }
+    it do
+      expect { subject.get_console_dispatcher_for_beaker_pe(true) }.to(
+        raise_exception(LoadError, /cannot load.*scooter/) 
+      )
+    end
+    it do
+      expect { subject.get_console_dispatcher_for_beaker_pe! }.to(
+        raise_exception(LoadError, /cannot load.*scooter/) 
+      )
+    end
+  end
 end
