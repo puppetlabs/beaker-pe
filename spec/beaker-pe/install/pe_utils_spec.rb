@@ -1616,4 +1616,73 @@ describe ClassMixedWithDSLInstallUtils do
       )
     end
   end
+
+  describe 'configure_puppet_agent_service' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.configure_puppet_agent_service }.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    context 'master prior to 2017.1.0' do
+      let(:pe_version) { '2016.5.1' }
+
+      it 'raises an exception about version' do
+        expect { subject.configure_puppet_agent_service({}) }.to(
+          raise_error(StandardError, /Can only manage.*2017.1.0; tried.* 2016.5.1/)
+        )
+      end
+    end
+
+    context '2017.1.0 master' do
+      let(:pe_conf_path) { '/etc/puppetlabs/enterprise/conf.d/pe.conf' }
+      let(:pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+        EOF
+      end
+      let(:gold_pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+"pe_infrastructure::agent::puppet_service_managed": true
+"pe_infrastructure::agent::puppet_service_ensure": "stopped"
+"pe_infrastructure::agent::puppet_service_enabled": false
+        EOF
+      end
+
+      it do
+        # mock reading pe.conf
+        expect(master).to receive(:exec).with(
+          have_attributes(:command => match(%r{cat .*/pe\.conf})),
+          anything
+        ).and_return(
+          double('result', :stdout => pe_conf)
+        )
+
+        # mock hitting the console
+        dispatcher = double('dispatcher').as_null_object
+        expect(subject).to receive(:get_console_dispatcher_for_beaker_pe)
+          .and_return(dispatcher)
+
+        # mock writing pe.conf and check for parameters
+        expect(subject).to receive(:create_remote_file).with(
+          master,
+          pe_conf_path,
+          gold_pe_conf
+        )
+
+        subject.configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
+      end
+    end
+  end
 end

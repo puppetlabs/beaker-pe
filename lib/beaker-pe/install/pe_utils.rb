@@ -34,6 +34,8 @@ module Beaker
         # PE-18718 switch flag to true once beaker-pe, beaker-answers,
         # beaker-pe-large-environments and pe_acceptance_tests are ready
         DEFAULT_MEEP_CLASSIFICATION = false
+        MEEP_DATA_DIR = '/etc/puppetlabs/enterprise'
+        PE_CONF_FILE = "#{MEEP_DATA_DIR}/conf.d/pe.conf"
 
         # @!macro [new] common_opts
         #   @param [Hash{Symbol=>String}] opts Options to alter execution.
@@ -502,6 +504,11 @@ module Beaker
                 task = 'defaultgroup:ensure_default_group'
               end
               on dashboard, "/opt/puppet/bin/rake -sf /opt/puppet/share/puppet-dashboard/Rakefile #{task} RAILS_ENV=production"
+            end
+
+            # PE-18799 replace the version_is_less with a use_meep_for_classification? test
+            if !version_is_less(master[:pe_ver], '2017.1.0')
+              configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
             end
 
             step "Final puppet agent run" do
@@ -1108,6 +1115,103 @@ module Beaker
         # Will raise a LoadError if unable to require Scooter.
         def get_console_dispatcher_for_beaker_pe!
           get_console_dispatcher_for_beaker_pe(true)
+        end
+
+        # In PE versions >= 2017.1.0, allows you to configure the puppet agent
+        # service for all nodes.
+        #
+        # @param parameters [Hash] - agent profile parameters
+        # @option parameters [Boolean] :managed - whether or not to manage the
+        #   agent resource at all (Optional, defaults to true).
+        # @option parameters [String] :ensure - 'stopped', 'running'
+        # @option parameters [Boolean] :enabled - whether the service will be
+        #   enabled (for restarts)
+        # @raise [StandardError] if master version is less than 2017.1.0
+        def configure_puppet_agent_service(parameters)
+          raise(StandardError, "Can only manage puppet service in PE versions >= 2017.1.0; tried for #{master['pe_ver']}") if version_is_less(master['pe_ver'], '2017.1.0')
+          puppet_managed = parameters.include?(:managed) ? parameters[:managed] : true
+          puppet_ensure = parameters[:ensure]
+          puppet_enabled = parameters[:enabled]
+
+          msg = puppet_managed ?
+            "Configure agents '#{puppet_ensure}' and #{puppet_enabled ? 'enabled' : 'disabled'}" :
+            "Do not manage agents"
+
+          step msg do
+            # PE-18799 and remove this conditional
+            if use_meep_for_classification?(master[:pe_ver], options)
+              group_name = 'Puppet Enterprise Agent'
+              class_name = 'pe_infrastructure::agent'
+            else
+              group_name = 'PE Agent'
+              class_name = 'puppet_enterprise::profile::agent'
+            end
+
+            # update pe conf
+            # only the pe_infrastructure::agent parameters are relevant in pe.conf
+            update_pe_conf({
+              "pe_infrastructure::agent::puppet_service_managed" => puppet_managed,
+              "pe_infrastructure::agent::puppet_service_ensure" => puppet_ensure,
+              "pe_infrastructure::agent::puppet_service_enabled" => puppet_enabled,
+            })
+
+            if _console_dispatcher = get_console_dispatcher_for_beaker_pe
+              agent_group = _console_dispatcher.get_node_group_by_name(group_name)
+              agent_class = agent_group['classes'][class_name]
+              agent_class['puppet_service_managed'] = puppet_managed
+              agent_class['puppet_service_ensure'] = puppet_ensure
+              agent_class['puppet_service_enabled'] = puppet_enabled
+
+              _console_dispatcher.update_node_group(agent_group['id'], agent_group)
+            end
+          end
+        end
+
+        # Given a hash of parameters, updates the primary master's pe.conf, adding or
+        # replacing the given parameters.
+        #
+        # Handles stringifying and quoting namespaced keys, and also preparing non
+        # string values using Hocon::ConfigValueFactory.
+        #
+        # Logs the state of pe.conf before and after.
+        #
+        # @param parameters [Hash] Hash of parameters to be included in pe.conf.
+        # @param pe_conf_file [String] The file to update
+        #   (/etc/puppetlabs/enterprise/conf.d/pe.conf by default)
+        def update_pe_conf(parameters, pe_conf_file = PE_CONF_FILE)
+          step "Update #{pe_conf_file} with #{parameters}" do
+            hocon_file_edit_in_place_on(master, pe_conf_file) do |host,doc|
+              updated_doc = parameters.reduce(doc) do |pe_conf,param|
+                key, value = param
+
+                hocon_key = case key
+                when /^[^"][^.]+/
+                  # if the key is unquoted and does not contain pathing ('.')
+                  # quote to ensure that puppet namespaces are protected
+                  # ("puppet_enterprise::database_host" for example...)
+                  then %Q{"#{key}"}
+                else key
+                end
+
+                hocon_value = case value
+                when String
+                  # ensure unquoted string values are quoted for uniformity
+                  then value.match(/^[^"]/) ? %Q{"#{value}"} : value
+                else Hocon::ConfigValueFactory.from_any_ref(value, nil)
+                end
+
+                updated = value.kind_of?(String) ?
+                  pe_conf.set_value(hocon_key, hocon_value) :
+                  pe_conf.set_config_value(hocon_key, hocon_value)
+
+                updated
+              end
+
+              # return the modified document
+              updated_doc
+            end
+            on(master, 'cat /etc/puppetlabs/enterprise/conf.d/pe.conf')
+          end
         end
       end
     end
