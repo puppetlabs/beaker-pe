@@ -476,8 +476,8 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
-  describe 'add_extended_gpg_key_to_hosts' do
-    let(:on_cmd) { 'curl http://apt.puppetlabs.com/DEB-GPG-KEY-puppetlabs | apt-key add -' }
+  describe 'ignore_gpg_key_warning_on_hosts' do
+    let(:on_cmd) { "echo 'APT { Get { AllowUnauthenticated \"1\"; }; };' >> /etc/apt/apt.conf" }
     let(:deb_host) do
       host = hosts.first
       host['platform'] = 'debian'
@@ -493,57 +493,57 @@ describe ClassMixedWithDSLInstallUtils do
 
       it 'does nothing on el platforms' do
         expect(subject).not_to receive(:on).with(hosts[0], on_cmd)
-        subject.add_extended_gpg_key_to_hosts(hosts, opts)
+        subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
       end
 
-      it 'installs key on debian based platforms' do
+      it 'adds in apt ignore gpg-key warning' do
         expect(subject).to receive(:on).with(hosts[1], on_cmd)
         expect(subject).to receive(:on).with(hosts[2], on_cmd)
-        subject.add_extended_gpg_key_to_hosts(hosts, opts)
+        subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
       end
     end
 
     context 'mixed pe_versions' do
       before(:each) do
         hosts[0]['platform'] = 'debian'
-        hosts[0]['pe_ver'] = '2016.2.0'
+        hosts[0]['pe_ver'] = '2016.4.0'
         hosts[1]['platform'] = 'debian'
         hosts[1]['pe_ver'] = '3.8.4'
       end
 
-      it 'adds key to required hosts' do
+      it 'adds apt gpg-key ignore to required hosts' do
         expect(subject).not_to receive(:on).with(hosts[0], on_cmd)
         expect(subject).to receive(:on).with(hosts[1], on_cmd)
-        subject.add_extended_gpg_key_to_hosts(hosts, opts)
+        subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
       end
     end
 
-    context 'PE versions earlier than 3.8.5' do
-      ['3.3.2', '3.7.3', '3.8.2'].each do |pe_ver|
-        it "Adds key on PE #{pe_ver}" do
+    context 'PE versions earlier than 3.8.7' do
+      ['3.3.2', '3.7.3', '3.8.2', '3.8.4', '3.8.5', '3.8.6'].each do |pe_ver|
+        it "Adds apt gpg-key ignore on PE #{pe_ver}" do
           deb_host['pe_ver'] = pe_ver
           expect(subject).to receive(:on).with(deb_host, on_cmd)
-          subject.add_extended_gpg_key_to_hosts(hosts, opts)
+          subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
         end
       end
     end
 
-    context 'PE versions between 2015.2.0 and 2016.1.1' do
-      ['2015.2.0', '2015.3.1', '2016.1.1'].each do |pe_ver|
-        it "Adds key on PE #{pe_ver}" do
+    context 'PE versions between 2015.2.0 and 2016.2.1' do
+      ['2015.2.0', '2015.3.1', '2016.1.2', '2016.2.1'].each do |pe_ver|
+        it "Adds apt gpg-key ignore on PE #{pe_ver}" do
           deb_host['pe_ver'] = pe_ver
           expect(subject).to receive(:on).with(deb_host, on_cmd)
-          subject.add_extended_gpg_key_to_hosts(hosts, opts)
+          subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
         end
       end
     end
 
-    ['3.8.5', '3.8.6', '2016.1.2', '2016.2.0'].each do |pe_ver|
+    ['2016.4.0', '2016.5.1', '2017.1.0'].each do |pe_ver|
       context "PE #{pe_ver}" do
         it 'does nothing' do
           deb_host['pe_ver'] = pe_ver
           expect(subject).not_to receive(:on).with(deb_host, on_cmd)
-          subject.add_extended_gpg_key_to_hosts(hosts, opts)
+          subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
         end
       end
     end

@@ -380,10 +380,10 @@ module Beaker
             hosts_agent_only, hosts_not_agent_only = [], hosts.dup
           end
 
-          # On July 8th, 2016, the GPG key used to sign repos inside PE tarballs
-          # expired. Add a temporary, extended key to the host first so that it
-          # can still install those old PE tarballs.
-          add_extended_gpg_key_to_hosts(hosts, opts)
+          # On January 5th, 2017, the extended GPG key has expired. Rather then
+          # every few months updating this gem to point to a new key for PE versions
+          # less then PE 2016.4.0 we are going to just ignore the warning when installing
+          ignore_gpg_key_warning_on_hosts(hosts, opts)
 
           # Set PE distribution for all the hosts, create working dir
           prepare_hosts(hosts_not_agent_only, opts)
@@ -620,21 +620,17 @@ module Beaker
           (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) || (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99')))
         end
 
-        # On July 8th, 2016, the gpg key that was shipped and used to sign repos in
-        # PE tarballs expired. This affects all PE version earlier then 3.8.5, and
-        # versions between 2015.2 to 2016.1.2.
-        #
-        # PE 3.8.5 and 2016.1.2 shipped with a version of the key that had it's
-        # expiration date extended by 6 months (to Janurary 2017).
-        def add_extended_gpg_key_to_hosts(hosts, opts)
+        # For PE 3.8.5 to PE 2016.1.2 they have an expired gpg key. This method is
+        # for deb nodes to ignore the gpg-key expiration warning
+        def ignore_gpg_key_warning_on_hosts(hosts, opts)
           hosts.each do |host|
             # RPM based platforms do not seem to be effected by an expired GPG key,
             # while deb based platforms are failing.
             if host['platform'] =~ /debian|ubuntu/
               host_ver = host['pe_ver'] || opts['pe_ver']
 
-              if version_is_less(host_ver, '3.8.5') || (!version_is_less(host_ver, '2015.2.0') && version_is_less(host_ver, '2016.1.2'))
-                on(host, 'curl http://apt.puppetlabs.com/DEB-GPG-KEY-puppetlabs | apt-key add -')
+              if version_is_less(host_ver, '3.8.7') || (!version_is_less(host_ver, '2015.2.0') && version_is_less(host_ver, '2016.4.0'))
+                on(host, "echo 'APT { Get { AllowUnauthenticated \"1\"; }; };' >> /etc/apt/apt.conf")
               end
             end
           end
