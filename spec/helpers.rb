@@ -76,9 +76,9 @@ module HostHelpers
   end
 
   def make_host name, host_hash
-    host_hash = StringifyHash.new.merge(HOST_DEFAULTS.merge(host_hash))
+    host_hash = Beaker::Options::OptionsHash.new.merge(HOST_DEFAULTS.merge(host_hash))
 
-    host = make_opts.merge(host_hash)
+    host = Beaker::Host.create( name, host_hash, make_opts)
 
     allow(host).to receive( :name ).and_return( name )
     allow(host).to receive( :hostname ).and_return( "#{name}.test" )

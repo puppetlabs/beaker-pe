@@ -364,7 +364,7 @@ describe ClassMixedWithDSLInstallUtils do
     end
 
     def slice_installer_options(host)
-      host.select { |k,v| [ :pe_installer_conf_file, :pe_installer_conf_setting].include?(k) }
+      host.host_hash.select { |k,v| [ :pe_installer_conf_file, :pe_installer_conf_setting].include?(k) }
     end
 
     context 'when version < 2016.2.0' do
@@ -1607,12 +1607,12 @@ describe ClassMixedWithDSLInstallUtils do
     it { expect(subject.get_console_dispatcher_for_beaker_pe).to be_nil }
     it do
       expect { subject.get_console_dispatcher_for_beaker_pe(true) }.to(
-        raise_exception(LoadError, /cannot load.*scooter/) 
+        raise_exception(LoadError, /cannot load.*scooter/)
       )
     end
     it do
       expect { subject.get_console_dispatcher_for_beaker_pe! }.to(
-        raise_exception(LoadError, /cannot load.*scooter/) 
+        raise_exception(LoadError, /cannot load.*scooter/)
       )
     end
   end
