@@ -1660,7 +1660,7 @@ describe ClassMixedWithDSLInstallUtils do
         EOF
       end
 
-      it do
+      it "modifies the agent puppet service settings in pe.conf" do
         # mock reading pe.conf
         expect(master).to receive(:exec).with(
           have_attributes(:command => match(%r{cat .*/pe\.conf})),
@@ -1682,6 +1682,68 @@ describe ClassMixedWithDSLInstallUtils do
         )
 
         subject.configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
+      end
+    end
+  end
+
+  describe 'update_pe_conf' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.update_pe_conf}.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    context '2017.1.0 master' do
+      let(:pe_conf_path) { '/etc/puppetlabs/enterprise/conf.d/pe.conf' }
+      let(:pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+"namespace::removed": "bye"
+"namespace::changed": "old"
+        EOF
+      end
+      let(:gold_pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+
+"namespace::changed": "new"
+"namespace::add": "hi"
+        EOF
+      end
+
+      it "adds, changes and removes hocon parameters from pe.conf" do
+        # mock reading pe.conf
+        expect(master).to receive(:exec).with(
+          have_attributes(:command => match(%r{cat .*/pe\.conf})),
+          anything
+        ).and_return(
+          double('result', :stdout => pe_conf)
+        )
+
+        # mock writing pe.conf and check for parameters
+        expect(subject).to receive(:create_remote_file).with(
+          master,
+          pe_conf_path,
+          gold_pe_conf
+        )
+
+        subject.update_pe_conf(
+          {
+            "namespace::add"     => "hi",
+            "namespace::changed" => "new",
+            "namespace::removed" => nil,
+          }
+        )
       end
     end
   end

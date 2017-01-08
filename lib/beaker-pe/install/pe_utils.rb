@@ -1168,12 +1168,35 @@ module Beaker
         end
 
         # Given a hash of parameters, updates the primary master's pe.conf, adding or
-        # replacing the given parameters.
+        # replacing, or removing the given parameters.
+        #
+        # To remove a parameter, pass a nil as its value
         #
         # Handles stringifying and quoting namespaced keys, and also preparing non
         # string values using Hocon::ConfigValueFactory.
         #
         # Logs the state of pe.conf before and after.
+        #
+        # @example
+        #   # Assuming pe.conf looks like:
+        #   # {
+        #   # "bar": "baz"
+        #   # "old": "item"
+        #   # }
+        #
+        #   update_pe_conf(
+        #     {
+        #       "foo" => "a",
+        #       "bar" => "b",
+        #       "old" => nil,
+        #     }
+        #   )
+        #
+        #   # Will produce a pe.conf like:
+        #   # {
+        #   # "bar": "b"
+        #   # "foo": "a"
+        #   # }
         #
         # @param parameters [Hash] Hash of parameters to be included in pe.conf.
         # @param pe_conf_file [String] The file to update
@@ -1200,9 +1223,14 @@ module Beaker
                 else Hocon::ConfigValueFactory.from_any_ref(value, nil)
                 end
 
-                updated = value.kind_of?(String) ?
-                  pe_conf.set_value(hocon_key, hocon_value) :
+                updated = case value
+                when String 
+                  pe_conf.set_value(hocon_key, hocon_value)
+                when nil
+                  pe_conf.remove_value(hocon_key)
+                else
                   pe_conf.set_config_value(hocon_key, hocon_value)
+                end
 
                 updated
               end
