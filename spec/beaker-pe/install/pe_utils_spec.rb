@@ -1617,6 +1617,25 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  def assert_meep_conf_edit(input, output, path, &test)
+    # mock reading pe.conf
+    expect(master).to receive(:exec).with(
+      have_attributes(:command => match(%r{cat #{path}})),
+      anything
+    ).and_return(
+      double('result', :stdout => input)
+    )
+
+    # mock writing pe.conf and check for parameters
+    expect(subject).to receive(:create_remote_file).with(
+      master,
+      path,
+      output
+    )
+
+    yield
+  end
+
   describe 'configure_puppet_agent_service' do
     let(:pe_version) { '2017.1.0' }
     let(:master) { hosts[0] }
@@ -1661,27 +1680,14 @@ describe ClassMixedWithDSLInstallUtils do
       end
 
       it "modifies the agent puppet service settings in pe.conf" do
-        # mock reading pe.conf
-        expect(master).to receive(:exec).with(
-          have_attributes(:command => match(%r{cat .*/pe\.conf})),
-          anything
-        ).and_return(
-          double('result', :stdout => pe_conf)
-        )
-
         # mock hitting the console
         dispatcher = double('dispatcher').as_null_object
         expect(subject).to receive(:get_console_dispatcher_for_beaker_pe)
           .and_return(dispatcher)
 
-        # mock writing pe.conf and check for parameters
-        expect(subject).to receive(:create_remote_file).with(
-          master,
-          pe_conf_path,
-          gold_pe_conf
-        )
-
-        subject.configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
+        assert_meep_conf_edit(pe_conf, gold_pe_conf, pe_conf_path) do
+          subject.configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
+        end
       end
     end
   end
@@ -1718,31 +1724,86 @@ describe ClassMixedWithDSLInstallUtils do
 
 "namespace::changed": "new"
 "namespace::add": "hi"
+"namespace::add2": "other"
         EOF
       end
 
       it "adds, changes and removes hocon parameters from pe.conf" do
-        # mock reading pe.conf
-        expect(master).to receive(:exec).with(
-          have_attributes(:command => match(%r{cat .*/pe\.conf})),
-          anything
-        ).and_return(
-          double('result', :stdout => pe_conf)
-        )
+        assert_meep_conf_edit(pe_conf, gold_pe_conf, pe_conf_path) do
+          subject.update_pe_conf(
+            {
+              "namespace::add"     => "hi",
+              "namespace::changed" => "new",
+              "namespace::removed" => nil,
+              "namespace::add2"     => "other",
+            }
+          )
+        end
+      end
+    end
+  end
 
-        # mock writing pe.conf and check for parameters
-        expect(subject).to receive(:create_remote_file).with(
-          master,
-          pe_conf_path,
-          gold_pe_conf
-        )
+  describe 'create_or_update_node_conf' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+    let(:node) { hosts[1] }
+    let(:node_conf_path) { "/etc/puppetlabs/enterprise/conf.d/nodes/vm2.conf" }
+    let(:node_conf) do
+      <<-EOF
+"namespace::removed": "bye"
+"namespace::changed": "old"
+      EOF
+    end
+    let(:updated_node_conf) do
+      <<-EOF
 
-        subject.update_pe_conf(
+"namespace::changed": "new"
+"namespace::add": "hi"
+      EOF
+    end
+    let(:created_node_conf) do
+      <<-EOF
+{
+  "namespace::one": "red"
+  "namespace::two": "blue"
+}
+      EOF
+    end
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.update_pe_conf}.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    it 'creates a node file that did not exist' do
+      expect(master).to receive(:file_exist?).with(node_conf_path).and_return(false)
+      expect(master).to receive(:file_exist?).with("/etc/puppetlabs/enterprise/conf.d/nodes").and_return(false)
+      expect(subject).to receive(:create_remote_file).with(master, node_conf_path, %Q|{\n}\n|)
+
+      assert_meep_conf_edit(%Q|{\n}\n|, created_node_conf, node_conf_path) do
+        subject.create_or_update_node_conf(
+          node,
+          {
+            "namespace::one" => "red",
+            "namespace::two" => "blue",
+          },
+        )
+      end
+    end
+
+    it 'updates a node file that did exist' do
+      assert_meep_conf_edit(node_conf, updated_node_conf, node_conf_path) do
+        subject.create_or_update_node_conf(
+          node,
           {
             "namespace::add"     => "hi",
             "namespace::changed" => "new",
             "namespace::removed" => nil,
-          }
+          },
         )
       end
     end

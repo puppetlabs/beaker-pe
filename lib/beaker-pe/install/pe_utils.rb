@@ -36,6 +36,7 @@ module Beaker
         DEFAULT_MEEP_CLASSIFICATION = false
         MEEP_DATA_DIR = '/etc/puppetlabs/enterprise'
         PE_CONF_FILE = "#{MEEP_DATA_DIR}/conf.d/pe.conf"
+        NODE_CONF_PATH = "#{MEEP_DATA_DIR}/conf.d/nodes"
 
         # @!macro [new] common_opts
         #   @param [Hash{Symbol=>String}] opts Options to alter execution.
@@ -1224,7 +1225,7 @@ module Beaker
                 end
 
                 updated = case value
-                when String 
+                when String
                   pe_conf.set_value(hocon_key, hocon_value)
                 when nil
                   pe_conf.remove_value(hocon_key)
@@ -1239,6 +1240,23 @@ module Beaker
               updated_doc
             end
             on(master, 'cat /etc/puppetlabs/enterprise/conf.d/pe.conf')
+          end
+        end
+
+        def create_or_update_node_conf(host, parameters, node_conf_path = NODE_CONF_PATH)
+          node_conf_file = "#{node_conf_path}/#{host.puppet['certname']}.conf"
+          step "Create or Update #{node_conf_file} with #{parameters}" do
+            if !master.file_exist?(node_conf_file)
+              if !master.file_exist?(node_conf_path)
+                # potentially create the nodes directory
+                on(master, "mkdir #{node_conf_path}")
+              end
+              # The hocon gem will create a list of comma separated parameters
+              # on the same line unless we start with something in the file.
+              create_remote_file(master, node_conf_file, %Q|{\n}\n|)
+              on(master, "chown pe-puppet #{node_conf_file}")
+            end
+            update_pe_conf(parameters, node_conf_file)
           end
         end
       end
