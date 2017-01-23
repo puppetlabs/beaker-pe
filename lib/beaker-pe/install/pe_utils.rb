@@ -119,6 +119,10 @@ module Beaker
               pe_cmd += " -y"
             end
 
+            if host[:installer_flags] || opts[:installer_flags]
+              pe_cmd += host[:installer_flags] || opts[:installer_flags]
+            end
+
             # This is a temporary workaround for PE-18516, because MEEP does not yet create a 2.0
             # pe.conf when recovering configuration in Flanders. This will be fixed in PE-18170.
             if opts[:type] == :upgrade && !version_is_less(host['pe_upgrade_ver'], '2017.1.0')
