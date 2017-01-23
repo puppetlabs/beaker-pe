@@ -1808,4 +1808,42 @@ describe ClassMixedWithDSLInstallUtils do
       end
     end
   end
+
+  describe "get_unwrapped_pe_conf_value" do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+    let(:pe_conf_path) { "/etc/puppetlabs/enterprise/conf.d/pe.conf" }
+    let(:pe_conf) do
+      <<-EOF
+"namespace::bool": true
+"namespace::string": "stringy"
+"namespace::array": ["of", "things"]
+"namespace::hash": {
+  "foo": "a"
+  "bar": "b"
+}
+      EOF
+    end
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+      expect(master).to receive(:exec).with(
+        have_attributes(:command => match(%r{cat #{pe_conf_path}})),
+        anything
+      ).and_return(
+        double('result', :stdout => pe_conf)
+      )
+    end
+
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::bool")).to eq(true) }
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::string")).to eq("stringy") }
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::array")).to eq(["of","things"]) }
+    it do
+      expect(subject.get_unwrapped_pe_conf_value("namespace::hash")).to eq({
+        'foo' => 'a',
+        'bar' => 'b',
+      })
+    end
+  end
 end

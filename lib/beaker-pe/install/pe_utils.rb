@@ -1208,14 +1208,7 @@ module Beaker
               updated_doc = parameters.reduce(doc) do |pe_conf,param|
                 key, value = param
 
-                hocon_key = case key
-                when /^[^"][^.]+/
-                  # if the key is unquoted and does not contain pathing ('.')
-                  # quote to ensure that puppet namespaces are protected
-                  # ("puppet_enterprise::database_host" for example...)
-                  then %Q{"#{key}"}
-                else key
-                end
+                hocon_key = quoted_hocon_key(key)
 
                 hocon_value = case value
                 when String
@@ -1239,12 +1232,51 @@ module Beaker
               # return the modified document
               updated_doc
             end
-            on(master, 'cat /etc/puppetlabs/enterprise/conf.d/pe.conf')
+            on(master, "cat #{pe_conf_file}")
           end
         end
 
+        # If the key is unquoted and does not contain pathing ('.'),
+        # quote to ensure that puppet namespaces are protected
+        #
+        # @example
+        #   quoted_hocon_key("puppet_enterprise::database_host")
+        #   # => '"puppet_enterprise::database_host"'
+        #
+        def quoted_hocon_key(key)
+          case key
+          when /^[^"][^.]+/
+            then %Q{"#{key}"}
+          else key
+          end
+        end
+
+        # @return a Ruby object of any root key in pe.conf.
+        #
+        # @param key [String] to lookup
+        # @param pe_conf_path [String] defaults to /etc/puppetlabs/enterprise/conf.d/pe.conf
+        def get_unwrapped_pe_conf_value(key, pe_conf_path = PE_CONF_FILE)
+          file_contents = on(master, "cat #{pe_conf_path}").stdout
+          # Seem to need to use ConfigFactory instead of ConfigDocumentFactory
+          # to get something that we can read values from?
+          doc = Hocon::ConfigFactory.parse_string(file_contents)
+          hocon_key = quoted_hocon_key(key)
+          doc.has_path?(hocon_key) ?
+            doc.get_value(hocon_key).unwrapped :
+            nil
+        end
+
+        # Creates a new /etc/puppetlabs/enterprise/conf.d/nodes/*.conf file for the
+        # given host's certname, and adds the passed parameters, or updates with the
+        # passed parameters if the file already exists.
+        #
+        # Does not remove an empty file.
+        #
+        # @param host [Beaker::Host] to create a node file for
+        # @param parameters [Hash] of key value pairs to add to the nodes conf file
+        # @param node_conf_path [String] defaults to /etc/puppetlabs/enterprise/conf.d/nodes
         def create_or_update_node_conf(host, parameters, node_conf_path = NODE_CONF_PATH)
-          node_conf_file = "#{node_conf_path}/#{host.puppet['certname']}.conf"
+          node_conf_file = "#{node_conf_path}/#{host.node_name}.conf"
           step "Create or Update #{node_conf_file} with #{parameters}" do
             if !master.file_exist?(node_conf_file)
               if !master.file_exist?(node_conf_path)
