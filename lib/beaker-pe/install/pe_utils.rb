@@ -119,13 +119,9 @@ module Beaker
               pe_cmd += " -y"
             end
 
-            # This is a temporary workaround for PE-18516, because MEEP does not yet create a 2.0
-            # pe.conf when recovering configuration in Flanders. This will be fixed in PE-18170.
-            if opts[:type] == :upgrade && !version_is_less(host['pe_upgrade_ver'], '2017.1.0')
-              "#{pe_cmd} #{host['pe_installer_conf_setting']}"
             # If there are no answer overrides, and we are doing an upgrade from 2016.2.0,
             # we can assume there will be a valid pe.conf in /etc that we can re-use.
-            elsif opts[:answers].nil? && opts[:custom_answers].nil? && opts[:type] == :upgrade && !version_is_less(opts[:HOSTS][host.name][:pe_ver], '2016.2.0')
+            if opts[:answers].nil? && opts[:custom_answers].nil? && opts[:type] == :upgrade && !version_is_less(opts[:HOSTS][host.name][:pe_ver], '2016.2.0')
               "#{pe_cmd}"
             else
               "#{pe_cmd} #{host['pe_installer_conf_setting']}"
