@@ -416,6 +416,28 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'register_feature_flags' do
+    it 'does nothing if no flag is set' do
+      expect(subject.register_feature_flags(opts)).to be_nil
+      expect(opts[:answers]).to be_nil
+    end
+
+    context 'with flag set' do
+      before(:each) do
+        allow(ENV).to receive(:[]).and_call_original
+        expect(ENV).to receive(:[]).with('PE_MODULES_NEXT').and_return('true')
+      end
+
+      it 'updates answers' do
+        expect(subject.register_feature_flags(opts)).to match({
+          'feature_flags' => {
+            'pe_modules_next' => true
+          }
+        })
+      end
+    end
+  end
+
   describe 'setup_beaker_answers_opts' do
     let(:opts) { {} }
     let(:host) { hosts.first }

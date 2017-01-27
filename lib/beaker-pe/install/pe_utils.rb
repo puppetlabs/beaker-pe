@@ -438,6 +438,7 @@ module Beaker
                 setup_defaults_and_config_helper_on(host, master, acceptable_codes)
               else
                 prepare_host_installer_options(host)
+                register_feature_flags(opts)
                 generate_installer_conf_file_for(host, hosts, opts)
                 on host, installer_cmd(host, opts)
                 configure_type_defaults_on(host)
@@ -674,6 +675,34 @@ module Beaker
             opts[:type] == :upgrade && !use_meep?(host['previous_pe_ver'])
 
           opts.merge(beaker_answers_opts)
+        end
+
+        # The pe-modules-next package is being used for isolating large scale
+        # feature development of PE module code. The feature flag is a pe.conf
+        # setting 'feature_flags::pe_modules_next', which if set true will
+        # cause the installer shim to install the pe-modules-next package
+        # instead of pe-modules.
+        #
+        # This answer can be explicitly added to Beaker's cfg file by adding it
+        # to the :answers section.
+        #
+        # But it can also be picked up transparently from CI via the
+        # PE_MODULES_NEXT environment variable.  If this is set 'true', then
+        # the opts[:answers] will be set with feature_flags::pe_modules_next.
+        #
+        # NOTE: This has implications for upgrades, because upgrade testing
+        # will need the flag, but upgrades from different pe.conf schema (or no
+        # pe.conf) will need to generate a pe.conf, and that workflow is likely
+        # to happen in the installer shim.  If we simply supply a good pe.conf
+        # via beaker-answers, then we have bypassed the pe.conf generation
+        # aspect of the upgrade workflow. (See PE-19438)
+        def register_feature_flags(opts)
+          if ENV['PE_MODULES_NEXT'] == 'true'
+            opts[:answers] ||= {}
+            opts[:answers]['feature_flags'] ||= {}
+            opts[:answers]['feature_flags']['pe_modules_next'] = true
+          end
+          opts[:answers]
         end
 
         # Generates a Beaker Answers object for the passed *host* and creates
