@@ -438,6 +438,37 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'feature_flag?' do
+
+    context 'without :answers' do
+      it 'is false for pe_modules_next' do
+        expect(subject.feature_flag?('pe_modules_next', opts)).to eq(false)
+      end
+    end
+
+    context 'with :answers' do
+      before(:each) do
+        opts[:answers] = {}
+      end
+
+      it 'is false for pe_modules_next' do
+        expect(subject.feature_flag?('pe_modules_next', opts)).to eq(false)
+      end
+    end
+
+    context 'with answers set' do
+      before(:each) do
+        opts[:answers] ||= {}
+        opts[:answers]['feature_flags'] ||= {}
+        opts[:answers]['feature_flags']['pe_modules_next'] = true
+      end
+
+      it 'is true for pe_modules_next' do
+        expect(subject.feature_flag?('pe_modules_next', opts)).to eq(true)
+      end
+    end
+  end
+
   describe 'setup_beaker_answers_opts' do
     let(:opts) { {} }
     let(:host) { hosts.first }
@@ -465,6 +496,24 @@ describe ClassMixedWithDSLInstallUtils do
             :include_legacy_database_defaults => false,
           )
         )
+      end
+
+      context 'with pe-modules-next' do
+        before(:each) do
+          opts[:answers] ||= {}
+          opts[:answers]['feature_flags'] ||= {}
+          opts[:answers]['feature_flags']['pe_modules_next'] = true
+        end
+
+        it 'adds meep_schema_version' do
+          expect(subject.setup_beaker_answers_opts(host, opts)).to eq(
+            opts.merge(
+              :format => :hiera,
+              :include_legacy_database_defaults => false,
+              :meep_schema_version => '2.0',
+            )
+          )
+        end
       end
 
       context 'when upgrading' do

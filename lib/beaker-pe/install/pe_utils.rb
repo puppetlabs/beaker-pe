@@ -608,6 +608,19 @@ module Beaker
           !version_is_less(version, MEEP_CUTOVER_VERSION)
         end
 
+        # Tests if a feature flag has been set in the answers hash provided to beaker
+        # options. Assumes a 'feature_flags' hash is present in the answers and looks for
+        # +flag+ within it.
+        #
+        # @param flag String flag to lookup
+        # @param opts Hash options hash to inspect
+        # @return true if flag is true or 'true' in the feature_flags hash
+        def feature_flag?(flag, opts)
+          answers = opts[:answers] || {}
+          flags = answers["feature_flags"] || {}
+          flags[flag].to_s.downcase == 'true'
+        end
+
         # Check if windows host is able to frictionlessly install puppet
         # @param [Beaker::Host] host that we are checking if it is possible to install frictionlessly to
         # @return [Boolean] true if frictionless is supported and not affected by known bugs
@@ -674,7 +687,13 @@ module Beaker
           beaker_answers_opts[:include_legacy_database_defaults] =
             opts[:type] == :upgrade && !use_meep?(host['previous_pe_ver'])
 
-          opts.merge(beaker_answers_opts)
+          modified_opts = opts.merge(beaker_answers_opts)
+
+          if feature_flag?('pe_modules_next', opts) && !modified_opts.include?(:meep_schema_version)
+            modified_opts[:meep_schema_version] = '2.0'
+          end
+
+          modified_opts
         end
 
         # The pe-modules-next package is being used for isolating large scale
