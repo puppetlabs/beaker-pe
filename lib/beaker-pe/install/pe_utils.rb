@@ -340,11 +340,13 @@ module Beaker
               node_group['classes'] ||= {}
             end
 
-            # add the pe_repo platform class
-            node_group['classes'][klass] = {}
+            # add the pe_repo platform class if it's not already present
+            if ! node_group['classes'].include?(klass)
+              node_group['classes'][klass] = {}
 
-            _console_dispatcher.create_new_node_group_model(node_group)
-            on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
+              _console_dispatcher.create_new_node_group_model(node_group)
+              on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
+            end
           end
         end
 
