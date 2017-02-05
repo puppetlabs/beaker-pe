@@ -1,6 +1,7 @@
 [ 'aio_defaults', 'pe_defaults', 'puppet_utils', 'windows_utils' ].each do |lib|
     require "beaker/dsl/install_utils/#{lib}"
 end
+require 'beaker-pe/install/feature_flags'
 require "beaker-answers"
 require "timeout"
 require "json"
@@ -25,6 +26,17 @@ module Beaker
 
         # Version of PE when we switched from legacy installer to MEEP.
         MEEP_CUTOVER_VERSION = '2016.2.0'
+        # Version of PE when we switched to using meep for classification
+        # instead of PE node groups
+        MEEP_CLASSIFICATION_VERSION = '2017.2.0'
+        # PE-18799 temporary default used for meep classification check while
+        # we navigate the switchover.
+        # PE-18718 switch flag to true once beaker-pe, beaker-answers,
+        # beaker-pe-large-environments and pe_acceptance_tests are ready
+        DEFAULT_MEEP_CLASSIFICATION = false
+        MEEP_DATA_DIR = '/etc/puppetlabs/enterprise'
+        PE_CONF_FILE = "#{MEEP_DATA_DIR}/conf.d/pe.conf"
+        NODE_CONF_PATH = "#{MEEP_DATA_DIR}/conf.d/nodes"
 
         # @!macro [new] common_opts
         #   @param [Hash{Symbol=>String}] opts Options to alter execution.
@@ -119,13 +131,9 @@ module Beaker
               pe_cmd += " -y"
             end
 
-            # This is a temporary workaround for PE-18516, because MEEP does not yet create a 2.0
-            # pe.conf when recovering configuration in Flanders. This will be fixed in PE-18170.
-            if opts[:type] == :upgrade && !version_is_less(host['pe_upgrade_ver'], '2017.1.0')
-              "#{pe_cmd} #{host['pe_installer_conf_setting']}"
             # If there are no answer overrides, and we are doing an upgrade from 2016.2.0,
             # we can assume there will be a valid pe.conf in /etc that we can re-use.
-            elsif opts[:answers].nil? && opts[:custom_answers].nil? && opts[:type] == :upgrade && !version_is_less(opts[:HOSTS][host.name][:pe_ver], '2016.2.0')
+            if opts[:answers].nil? && opts[:custom_answers].nil? && opts[:type] == :upgrade && !version_is_less(opts[:HOSTS][host.name][:pe_ver], '2016.2.0')
               "#{pe_cmd}"
             else
               "#{pe_cmd} #{host['pe_installer_conf_setting']}"
@@ -180,7 +188,6 @@ module Beaker
         def fetch_pe_on_windows(host, opts)
           path = host['pe_dir'] || opts[:pe_dir]
           local = File.directory?(path)
-          version = host['pe_ver'] || opts[:pe_ver_win]
           filename = "#{host['dist']}"
           extension = ".msi"
           if local
@@ -306,19 +313,12 @@ module Beaker
             on dashboard, "cd /opt/puppet/share/puppet-dashboard && /opt/puppet/bin/bundle exec /opt/puppet/bin/rake node:addclass[#{master},#{klass}]"
             on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
           else
-            # the new hotness
-            begin
-              require 'scooter'
-            rescue LoadError => e
-              @logger.notify('WARNING: gem scooter is required for frictionless installation post 3.8')
-              raise e
-            end
-            dispatcher = Scooter::HttpDispatchers::ConsoleDispatcher.new(dashboard)
+            _console_dispatcher = get_console_dispatcher_for_beaker_pe!
 
             # Check if we've already created a frictionless agent node group
             # to avoid errors creating the same node group when the beaker hosts file contains
             # multiple hosts with the same platform
-            node_group = dispatcher.get_node_group_by_name('Beaker Frictionless Agent')
+            node_group = _console_dispatcher.get_node_group_by_name('Beaker Frictionless Agent')
             if node_group.nil? || node_group.empty?
               node_group = {}
               node_group['name'] = "Beaker Frictionless Agent"
@@ -330,7 +330,7 @@ module Beaker
             # add the pe_repo platform class
             node_group['classes'][klass] = {}
 
-            dispatcher.create_new_node_group_model(node_group)
+            _console_dispatcher.create_new_node_group_model(node_group)
             on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
           end
         end
@@ -442,6 +442,7 @@ module Beaker
                 setup_defaults_and_config_helper_on(host, master, acceptable_codes)
               else
                 prepare_host_installer_options(host)
+                register_feature_flags!(opts)
                 generate_installer_conf_file_for(host, hosts, opts)
                 on host, installer_cmd(host, opts)
                 configure_type_defaults_on(host)
@@ -504,6 +505,11 @@ module Beaker
                 task = 'defaultgroup:ensure_default_group'
               end
               on dashboard, "/opt/puppet/bin/rake -sf /opt/puppet/share/puppet-dashboard/Rakefile #{task} RAILS_ENV=production"
+            end
+
+            # PE-18799 replace the version_is_less with a use_meep_for_classification? test
+            if !version_is_less(master[:pe_ver], '2017.1.0')
+              configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
             end
 
             step "Final puppet agent run" do
@@ -611,6 +617,19 @@ module Beaker
           !version_is_less(version, MEEP_CUTOVER_VERSION)
         end
 
+        # Tests if a feature flag has been set in the answers hash provided to beaker
+        # options. Assumes a 'feature_flags' hash is present in the answers and looks for
+        # +flag+ within it.
+        #
+        # @param flag String flag to lookup
+        # @param opts Hash options hash to inspect
+        # @return true if +flag+ is true or 'true' in the feature_flags hash,
+        #   false otherwise. However, returns nil if there is no +flag+ in the
+        #   answers hash at all
+        def feature_flag?(flag, opts)
+          Beaker::DSL::InstallUtils::FeatureFlags.new(opts).flag?(flag)
+        end
+
         # Check if windows host is able to frictionlessly install puppet
         # @param [Beaker::Host] host that we are checking if it is possible to install frictionlessly to
         # @return [Boolean] true if frictionless is supported and not affected by known bugs
@@ -618,6 +637,31 @@ module Beaker
           #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
           #powershell2 bug was fixed in PE 2016.4.3
           (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) || (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99')))
+        end
+
+        # True if version is greater than or equal to MEEP_CLASSIFICATION_VERSION
+        # (PE-18718) AND the temporary feature flag is true.
+        #
+        # The temporary feature flag is pe_modules_next and can be set in
+        # the :answers hash given in beaker's host.cfg, inside a feature_flags
+        # hash. It will also be picked up from the environment as
+        # PE_MODULES_NEXT. (See register_feature_flags!())
+        #
+        # The :answers hash value will take precedence over the env variable.
+        #
+        # @param version String the current PE version
+        # @param opts Hash options hash to inspect for :answers
+        # @return Boolean true if version and flag allows for meep classification
+        #   feature.
+        def use_meep_for_classification?(version, opts)
+          # PE-19470 remove vv
+          register_feature_flags!(opts)
+
+          temporary_flag = feature_flag?('pe_modules_next', opts)
+          temporary_flag = DEFAULT_MEEP_CLASSIFICATION if temporary_flag.nil?
+          # ^^
+
+          !version_is_less(version, MEEP_CLASSIFICATION_VERSION) && temporary_flag
         end
 
         # For PE 3.8.5 to PE 2016.1.2 they have an expired gpg key. This method is
@@ -677,7 +721,39 @@ module Beaker
           beaker_answers_opts[:include_legacy_database_defaults] =
             opts[:type] == :upgrade && !use_meep?(host['previous_pe_ver'])
 
-          opts.merge(beaker_answers_opts)
+          modified_opts = opts.merge(beaker_answers_opts)
+
+          if feature_flag?('pe_modules_next', opts) && !modified_opts.include?(:meep_schema_version)
+            modified_opts[:meep_schema_version] = '2.0'
+          end
+
+          modified_opts
+        end
+
+        # The pe-modules-next package is being used for isolating large scale
+        # feature development of PE module code. The feature flag is a pe.conf
+        # setting 'feature_flags::pe_modules_next', which if set true will
+        # cause the installer shim to install the pe-modules-next package
+        # instead of pe-modules.
+        #
+        # This answer can be explicitly added to Beaker's cfg file by adding it
+        # to the :answers section.
+        #
+        # But it can also be picked up transparently from CI via the
+        # PE_MODULES_NEXT environment variable.  If this is set 'true', then
+        # the opts[:answers] will be set with feature_flags::pe_modules_next.
+        #
+        # Answers set in Beaker's config file will take precedence over the
+        # environment variable.
+        #
+        # NOTE: This has implications for upgrades, because upgrade testing
+        # will need the flag, but upgrades from different pe.conf schema (or no
+        # pe.conf) will need to generate a pe.conf, and that workflow is likely
+        # to happen in the installer shim.  If we simply supply a good pe.conf
+        # via beaker-answers, then we have bypassed the pe.conf generation
+        # aspect of the upgrade workflow. (See PE-19438)
+        def register_feature_flags!(opts)
+          Beaker::DSL::InstallUtils::FeatureFlags.new(opts).register_flags!
         end
 
         # Generates a Beaker Answers object for the passed *host* and creates
@@ -1017,6 +1093,204 @@ module Beaker
           scp_to host, "#{local_dir}/#{filename}#{extension}", host['working_dir']
         end
 
+        # Being able to modify PE's classifier requires the Scooter gem and
+        # helpers which are in beaker-pe-large-environments.
+        def get_console_dispatcher_for_beaker_pe(raise_exception = false)
+          if !respond_to?(:get_dispatcher)
+            begin
+              # just in case scooter is present but beaker-pe-large-environments is not
+              # ...most likely this will raise a LoadError...
+              require 'scooter'
+              Scooter::HttpDispatchers::ConsoleDispatcher.new(dashboard)
+            rescue LoadError => e
+              logger.notify('WARNING: gem scooter is required for frictionless installation post 3.8')
+              raise e if raise_exception
+
+              return nil
+            end
+          else
+            get_dispatcher
+          end
+        end
+
+        # Will raise a LoadError if unable to require Scooter.
+        def get_console_dispatcher_for_beaker_pe!
+          get_console_dispatcher_for_beaker_pe(true)
+        end
+
+        # In PE versions >= 2017.1.0, allows you to configure the puppet agent
+        # service for all nodes.
+        #
+        # @param parameters [Hash] - agent profile parameters
+        # @option parameters [Boolean] :managed - whether or not to manage the
+        #   agent resource at all (Optional, defaults to true).
+        # @option parameters [String] :ensure - 'stopped', 'running'
+        # @option parameters [Boolean] :enabled - whether the service will be
+        #   enabled (for restarts)
+        # @raise [StandardError] if master version is less than 2017.1.0
+        def configure_puppet_agent_service(parameters)
+          raise(StandardError, "Can only manage puppet service in PE versions >= 2017.1.0; tried for #{master['pe_ver']}") if version_is_less(master['pe_ver'], '2017.1.0')
+          puppet_managed = parameters.include?(:managed) ? parameters[:managed] : true
+          puppet_ensure = parameters[:ensure]
+          puppet_enabled = parameters[:enabled]
+
+          msg = puppet_managed ?
+            "Configure agents '#{puppet_ensure}' and #{puppet_enabled ? 'enabled' : 'disabled'}" :
+            "Do not manage agents"
+
+          step msg do
+            # PE-18799 and remove this conditional
+            if use_meep_for_classification?(master[:pe_ver], options)
+              group_name = 'Puppet Enterprise Agent'
+              class_name = 'pe_infrastructure::agent'
+            else
+              group_name = 'PE Agent'
+              class_name = 'puppet_enterprise::profile::agent'
+            end
+
+            # update pe conf
+            # only the pe_infrastructure::agent parameters are relevant in pe.conf
+            update_pe_conf({
+              "pe_infrastructure::agent::puppet_service_managed" => puppet_managed,
+              "pe_infrastructure::agent::puppet_service_ensure" => puppet_ensure,
+              "pe_infrastructure::agent::puppet_service_enabled" => puppet_enabled,
+            })
+
+            if _console_dispatcher = get_console_dispatcher_for_beaker_pe
+              agent_group = _console_dispatcher.get_node_group_by_name(group_name)
+              agent_class = agent_group['classes'][class_name]
+              agent_class['puppet_service_managed'] = puppet_managed
+              agent_class['puppet_service_ensure'] = puppet_ensure
+              agent_class['puppet_service_enabled'] = puppet_enabled
+
+              _console_dispatcher.update_node_group(agent_group['id'], agent_group)
+            end
+          end
+        end
+
+        # Given a hash of parameters, updates the primary master's pe.conf, adding or
+        # replacing, or removing the given parameters.
+        #
+        # To remove a parameter, pass a nil as its value
+        #
+        # Handles stringifying and quoting namespaced keys, and also preparing non
+        # string values using Hocon::ConfigValueFactory.
+        #
+        # Logs the state of pe.conf before and after.
+        #
+        # @example
+        #   # Assuming pe.conf looks like:
+        #   # {
+        #   # "bar": "baz"
+        #   # "old": "item"
+        #   # }
+        #
+        #   update_pe_conf(
+        #     {
+        #       "foo" => "a",
+        #       "bar" => "b",
+        #       "old" => nil,
+        #     }
+        #   )
+        #
+        #   # Will produce a pe.conf like:
+        #   # {
+        #   # "bar": "b"
+        #   # "foo": "a"
+        #   # }
+        #
+        # @param parameters [Hash] Hash of parameters to be included in pe.conf.
+        # @param pe_conf_file [String] The file to update
+        #   (/etc/puppetlabs/enterprise/conf.d/pe.conf by default)
+        def update_pe_conf(parameters, pe_conf_file = PE_CONF_FILE)
+          step "Update #{pe_conf_file} with #{parameters}" do
+            hocon_file_edit_in_place_on(master, pe_conf_file) do |host,doc|
+              updated_doc = parameters.reduce(doc) do |pe_conf,param|
+                key, value = param
+
+                hocon_key = quoted_hocon_key(key)
+
+                hocon_value = case value
+                when String
+                  # ensure unquoted string values are quoted for uniformity
+                  then value.match(/^[^"]/) ? %Q{"#{value}"} : value
+                else Hocon::ConfigValueFactory.from_any_ref(value, nil)
+                end
+
+                updated = case value
+                when String
+                  pe_conf.set_value(hocon_key, hocon_value)
+                when nil
+                  pe_conf.remove_value(hocon_key)
+                else
+                  pe_conf.set_config_value(hocon_key, hocon_value)
+                end
+
+                updated
+              end
+
+              # return the modified document
+              updated_doc
+            end
+            on(master, "cat #{pe_conf_file}")
+          end
+        end
+
+        # If the key is unquoted and does not contain pathing ('.'),
+        # quote to ensure that puppet namespaces are protected
+        #
+        # @example
+        #   quoted_hocon_key("puppet_enterprise::database_host")
+        #   # => '"puppet_enterprise::database_host"'
+        #
+        def quoted_hocon_key(key)
+          case key
+          when /^[^"][^.]+/
+            then %Q{"#{key}"}
+          else key
+          end
+        end
+
+        # @return a Ruby object of any root key in pe.conf.
+        #
+        # @param key [String] to lookup
+        # @param pe_conf_path [String] defaults to /etc/puppetlabs/enterprise/conf.d/pe.conf
+        def get_unwrapped_pe_conf_value(key, pe_conf_path = PE_CONF_FILE)
+          file_contents = on(master, "cat #{pe_conf_path}").stdout
+          # Seem to need to use ConfigFactory instead of ConfigDocumentFactory
+          # to get something that we can read values from?
+          doc = Hocon::ConfigFactory.parse_string(file_contents)
+          hocon_key = quoted_hocon_key(key)
+          doc.has_path?(hocon_key) ?
+            doc.get_value(hocon_key).unwrapped :
+            nil
+        end
+
+        # Creates a new /etc/puppetlabs/enterprise/conf.d/nodes/*.conf file for the
+        # given host's certname, and adds the passed parameters, or updates with the
+        # passed parameters if the file already exists.
+        #
+        # Does not remove an empty file.
+        #
+        # @param host [Beaker::Host] to create a node file for
+        # @param parameters [Hash] of key value pairs to add to the nodes conf file
+        # @param node_conf_path [String] defaults to /etc/puppetlabs/enterprise/conf.d/nodes
+        def create_or_update_node_conf(host, parameters, node_conf_path = NODE_CONF_PATH)
+          node_conf_file = "#{node_conf_path}/#{host.node_name}.conf"
+          step "Create or Update #{node_conf_file} with #{parameters}" do
+            if !master.file_exist?(node_conf_file)
+              if !master.file_exist?(node_conf_path)
+                # potentially create the nodes directory
+                on(master, "mkdir #{node_conf_path}")
+              end
+              # The hocon gem will create a list of comma separated parameters
+              # on the same line unless we start with something in the file.
+              create_remote_file(master, node_conf_file, %Q|{\n}\n|)
+              on(master, "chown pe-puppet #{node_conf_file}")
+            end
+            update_pe_conf(parameters, node_conf_file)
+          end
+        end
       end
     end
   end
