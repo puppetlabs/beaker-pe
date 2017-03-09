@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'helpers'
 require 'beaker'
 require 'scooter'
 
