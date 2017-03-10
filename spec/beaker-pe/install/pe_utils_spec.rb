@@ -1,5 +1,4 @@
 require 'spec_helper'
-require 'beaker'
 
 class ClassMixedWithDSLInstallUtils
   include Beaker::DSL::InstallUtils
@@ -10,10 +9,11 @@ class ClassMixedWithDSLInstallUtils
   include Beaker::DSL::Patterns
   include Beaker::DSL::PE
 
-  attr_accessor :hosts, :metadata
+  attr_accessor :hosts, :metadata, :options
 
   def initialize
     @metadata = {}
+    @options = {}
   end
 
   # Because some the methods now actually call out to the `step` method, we need to
@@ -364,7 +364,7 @@ describe ClassMixedWithDSLInstallUtils do
     end
 
     def slice_installer_options(host)
-      host.select { |k,v| [ :pe_installer_conf_file, :pe_installer_conf_setting].include?(k) }
+      host.host_hash.select { |k,v| [ :pe_installer_conf_file, :pe_installer_conf_setting].include?(k) }
     end
 
     context 'when version < 2016.2.0' do
@@ -387,6 +387,82 @@ describe ClassMixedWithDSLInstallUtils do
 
       it 'sets meep settings' do
         expect(slice_installer_options(host)).to eq(meep_settings)
+      end
+    end
+  end
+
+  describe 'use_meep_for_classification?' do
+    let(:feature_flag) { nil }
+    let(:environment_feature_flag) { nil }
+    let(:answers) do
+      {
+        :answers => {
+          'feature_flags' => {
+            'pe_modules_next' => feature_flag,
+          },
+        },
+      }
+    end
+    let(:options) do
+      feature_flag.nil? ?
+        opts :
+        opts.merge(answers)
+    end
+    let(:host) { unixhost }
+
+    before(:each) do
+      subject.options = options
+      if !environment_feature_flag.nil?
+        ENV['PE_MODULES_NEXT'] = environment_feature_flag
+      end
+    end
+
+    after(:each) do
+      ENV.delete('PE_MODULES_NEXT')
+    end
+
+    it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+    it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+
+    context 'feature flag false' do
+      let(:feature_flag) { false }
+
+      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+    end
+
+    context 'feature flag true' do
+      let(:feature_flag) { true }
+
+      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
+    end
+
+    context 'environment feature flag true' do
+      let(:environment_feature_flag) { 'true' }
+
+      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
+
+      context 'answers feature flag false' do
+        let(:feature_flag) { false }
+
+        it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+        it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+      end
+    end
+
+    context 'environment feature flag false' do
+      let(:environment_feature_flag) { 'false' }
+
+      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+
+      context 'answers feature flag true' do
+        let(:feature_flag) { true }
+
+        it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+        it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
       end
     end
   end
@@ -821,6 +897,8 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :hosts ).and_return( hosts )
       #create answers file per-host, except windows
       expect( subject ).to receive( :create_remote_file ).with( hosts[0], /answers/, /q/ ).once
+      # copy the pe.conf
+      expect( subject ).to receive( :scp_from ).and_return(true)
       #run installer on all hosts
       expect( subject ).to receive( :on ).with( hosts[0], /puppet-enterprise-installer/ ).once
       expect( subject ).to receive( :install_msi_on ).with ( any_args ) do | host, msi_path, msi_opts, opts |
@@ -965,6 +1043,7 @@ describe ClassMixedWithDSLInstallUtils do
         allow( subject ).to receive( :configure_type_defaults_on ).with( host )
       end
 
+      expect( subject ).to receive( :scp_from ).and_return(true)
       subject.do_install( hosts, opts )
     end
 
@@ -1030,6 +1109,7 @@ describe ClassMixedWithDSLInstallUtils do
         allow( subject ).to receive( :configure_type_defaults_on ).with( host )
       end
 
+      expect( subject ).to receive( :scp_from ).and_return(true)
       subject.do_install( hosts, opts )
     end
 
@@ -1100,6 +1180,7 @@ describe ClassMixedWithDSLInstallUtils do
         allow( subject ).to receive( :configure_type_defaults_on ).with( host )
       end
 
+      expect( subject ).to receive( :scp_from ).and_return(true)
       subject.do_install( hosts, opts )
     end
 
@@ -1519,6 +1600,236 @@ describe ClassMixedWithDSLInstallUtils do
         test_setup( :json_hash => "{ \"values\": {}}" )
         expect { subject.get_puppet_agent_version( {} ) }.to raise_error( ArgumentError )
       end
+    end
+  end
+
+  def assert_meep_conf_edit(input, output, path, &test)
+    # mock reading pe.conf
+    expect(master).to receive(:exec).with(
+      have_attributes(:command => match(%r{cat #{path}})),
+      anything
+    ).and_return(
+      double('result', :stdout => input)
+    )
+
+    # mock writing pe.conf and check for parameters
+    expect(subject).to receive(:create_remote_file).with(
+      master,
+      path,
+      output
+    )
+
+    yield
+  end
+
+  describe 'configure_puppet_agent_service' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.configure_puppet_agent_service }.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    context 'master prior to 2017.1.0' do
+      let(:pe_version) { '2016.5.1' }
+
+      it 'raises an exception about version' do
+        expect { subject.configure_puppet_agent_service({}) }.to(
+          raise_error(StandardError, /Can only manage.*2017.1.0; tried.* 2016.5.1/)
+        )
+      end
+    end
+
+    context '2017.1.0 master' do
+      let(:pe_conf_path) { '/etc/puppetlabs/enterprise/conf.d/pe.conf' }
+      let(:pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+        EOF
+      end
+      let(:gold_pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+"pe_infrastructure::agent::puppet_service_managed": true
+"pe_infrastructure::agent::puppet_service_ensure": "stopped"
+"pe_infrastructure::agent::puppet_service_enabled": false
+        EOF
+      end
+
+      it "modifies the agent puppet service settings in pe.conf" do
+        # mock hitting the console
+        dispatcher = double('dispatcher').as_null_object
+        expect(subject).to receive(:get_console_dispatcher_for_beaker_pe)
+          .and_return(dispatcher)
+
+        assert_meep_conf_edit(pe_conf, gold_pe_conf, pe_conf_path) do
+          subject.configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
+        end
+      end
+    end
+  end
+
+  describe 'update_pe_conf' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.update_pe_conf}.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    context '2017.1.0 master' do
+      let(:pe_conf_path) { '/etc/puppetlabs/enterprise/conf.d/pe.conf' }
+      let(:pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+"namespace::removed": "bye"
+"namespace::changed": "old"
+        EOF
+      end
+      let(:gold_pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+
+"namespace::changed": "new"
+"namespace::add": "hi"
+"namespace::add2": "other"
+        EOF
+      end
+
+      it "adds, changes and removes hocon parameters from pe.conf" do
+        assert_meep_conf_edit(pe_conf, gold_pe_conf, pe_conf_path) do
+          subject.update_pe_conf(
+            {
+              "namespace::add"     => "hi",
+              "namespace::changed" => "new",
+              "namespace::removed" => nil,
+              "namespace::add2"     => "other",
+            }
+          )
+        end
+      end
+    end
+  end
+
+  describe 'create_or_update_node_conf' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+    let(:node) { hosts[1] }
+    let(:node_conf_path) { "/etc/puppetlabs/enterprise/conf.d/nodes/vm2.conf" }
+    let(:node_conf) do
+      <<-EOF
+"namespace::removed": "bye"
+"namespace::changed": "old"
+      EOF
+    end
+    let(:updated_node_conf) do
+      <<-EOF
+
+"namespace::changed": "new"
+"namespace::add": "hi"
+      EOF
+    end
+    let(:created_node_conf) do
+      <<-EOF
+{
+  "namespace::one": "red"
+  "namespace::two": "blue"
+}
+      EOF
+    end
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.update_pe_conf}.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    it 'creates a node file that did not exist' do
+      expect(master).to receive(:file_exist?).with(node_conf_path).and_return(false)
+      expect(master).to receive(:file_exist?).with("/etc/puppetlabs/enterprise/conf.d/nodes").and_return(false)
+      expect(subject).to receive(:create_remote_file).with(master, node_conf_path, %Q|{\n}\n|)
+
+      assert_meep_conf_edit(%Q|{\n}\n|, created_node_conf, node_conf_path) do
+        subject.create_or_update_node_conf(
+          node,
+          {
+            "namespace::one" => "red",
+            "namespace::two" => "blue",
+          },
+        )
+      end
+    end
+
+    it 'updates a node file that did exist' do
+      assert_meep_conf_edit(node_conf, updated_node_conf, node_conf_path) do
+        subject.create_or_update_node_conf(
+          node,
+          {
+            "namespace::add"     => "hi",
+            "namespace::changed" => "new",
+            "namespace::removed" => nil,
+          },
+        )
+      end
+    end
+  end
+
+  describe "get_unwrapped_pe_conf_value" do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+    let(:pe_conf_path) { "/etc/puppetlabs/enterprise/conf.d/pe.conf" }
+    let(:pe_conf) do
+      <<-EOF
+"namespace::bool": true
+"namespace::string": "stringy"
+"namespace::array": ["of", "things"]
+"namespace::hash": {
+  "foo": "a"
+  "bar": "b"
+}
+      EOF
+    end
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+      expect(master).to receive(:exec).with(
+        have_attributes(:command => match(%r{cat #{pe_conf_path}})),
+        anything
+      ).and_return(
+        double('result', :stdout => pe_conf)
+      )
+    end
+
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::bool")).to eq(true) }
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::string")).to eq("stringy") }
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::array")).to eq(["of","things"]) }
+    it do
+      expect(subject.get_unwrapped_pe_conf_value("namespace::hash")).to eq({
+        'foo' => 'a',
+        'bar' => 'b',
+      })
     end
   end
 end
