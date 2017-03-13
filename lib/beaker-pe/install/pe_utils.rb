@@ -1316,6 +1316,15 @@ module Beaker
                   update_pe_conf(opts[:custom_answers])
                 end
               end
+
+              step "Adding agent profiles" do
+                profiles = hosts.map do |h|
+                  h['platform']
+                end
+                update_pe_conf({
+                  "agent_platforms" => profiles.uniq!,
+                })
+              end
             else
               step "Uploading #{BEAKER_MEEP_TMP}/conf.d that was generated on the master" do
                 # scp conf.d to host
