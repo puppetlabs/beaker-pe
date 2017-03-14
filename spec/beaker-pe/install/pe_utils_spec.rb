@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'scooter'
 
 class ClassMixedWithDSLInstallUtils
   include Beaker::DSL::InstallUtils
@@ -925,6 +926,39 @@ describe ClassMixedWithDSLInstallUtils do
     it 'identifies a non-standard install as generic' do
       hosts = [monolithic, master, agent, agent, agent]
       expect(subject.determine_install_type(hosts, {})).to eq(:generic)
+    end
+  end
+
+  describe '#deploy_frictionless_to_master' do
+    let(:master) { make_host('master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
+    let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
+    let(:dispatcher) { double('dispatcher') }
+    let(:node_group) { {} }
+
+    before :each do
+      allow(subject).to receive(:on)
+
+      allow(subject).to receive(:hosts).and_return([master, agent])
+      allow(Scooter::HttpDispatchers::ConsoleDispatcher).to receive(:new).and_return(dispatcher)
+
+      allow(dispatcher).to receive(:get_node_group_by_name).and_return(node_group)
+      allow(dispatcher).to receive(:create_new_node_group_model) {|model| node_group.update(model)}
+    end
+
+    it 'adds the right pe_repo class to the Beaker Frictionless Agent group' do
+      subject.deploy_frictionless_to_master(agent)
+
+      expect(node_group['rule']).to eq(['and', ['=', 'name', 'master']])
+      expect(node_group['classes']).to include('pe_repo::platform::el_7_x86_64')
+    end
+
+    it 'only adds classes once' do
+      expect(dispatcher).to receive(:create_new_node_group_model).once
+
+      subject.deploy_frictionless_to_master(agent)
+      subject.deploy_frictionless_to_master(agent)
+
+      expect(node_group['classes']).to include('pe_repo::platform::el_7_x86_64')
     end
   end
 
