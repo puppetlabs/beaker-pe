@@ -501,10 +501,6 @@ module Beaker
               end
             end
 
-            install_hosts.each do |host|
-              wait_for_host_in_dashboard(host)
-            end
-
             # only appropriate for pre-3.9 builds
             if version_is_less(master[:pe_ver], '3.99')
               if pre30master

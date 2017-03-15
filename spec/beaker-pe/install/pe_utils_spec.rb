@@ -659,7 +659,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :stop_agent_on ).and_return( true )
       allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
       allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('3.0')
-      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
       allow( subject ).to receive( :puppet_agent ) do |arg|
         "puppet agent #{arg}"
       end
@@ -735,7 +734,6 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject ).to_not receive( :sign_certificate_for )
       expect( subject ).to receive( :stop_agent_on ).with( hosts[0] ).once
       expect( subject ).to_not receive( :sleep_until_puppetdb_started )
-      expect( subject ).to_not receive( :wait_for_host_in_dashboard )
       expect( subject ).to_not receive( :on ).with( hosts[0], /puppet agent -t/, :acceptable_exit_codes => [0,2] )
 
       hosts.each do |host|
@@ -764,7 +762,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :stop_agent_on ).and_return( true )
       allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
       allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('4.0')
-      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
       allow( subject ).to receive( :puppet_agent ) do |arg|
         "puppet agent #{arg}"
       end
@@ -821,7 +818,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :stop_agent_on ).and_return( true )
       allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
       allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('4.0')
-      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
       allow( subject ).to receive( :puppet_agent ) do |arg|
         "puppet agent #{arg}"
       end
@@ -880,7 +876,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :stop_agent_on ).and_return( true )
       allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
       allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('4.0')
-      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
       allow( subject ).to receive( :puppet_agent ) do |arg|
         "puppet agent #{arg}"
       end
