@@ -878,64 +878,7 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
-  describe "#determine_install_type" do
-    let(:monolithic) { make_host('monolithic', :pe_ver => '2016.4', :roles => [ 'master', 'database', 'dashboard' ]) }
-    let(:master) { make_host('master', :pe_ver => '2016.4', :roles => [ 'master' ]) }
-    let(:puppetdb) { make_host('puppetdb', :pe_ver => '2016.4', :roles => [ 'database' ]) }
-    let(:console) { make_host('console', :pe_ver => '2016.4', :roles => [ 'dashboard' ]) }
-    let(:agent) { make_host('agent', :pe_ver => '2016.4', :roles => ['frictionless']) }
-
-    it 'identifies a monolithic install with frictionless agents' do
-      hosts = [monolithic, agent, agent, agent]
-      expect(subject.determine_install_type(hosts, {})).to eq(:simple_monolithic)
-    end
-
-    it 'identifies a monolithic install without frictionless agents' do
-      expect(subject.determine_install_type([monolithic], {})).to eq(:simple_monolithic)
-    end
-
-    it 'identifies a split install with frictionless agents' do
-      hosts = [master, puppetdb, console, agent, agent, agent]
-      expect(subject.determine_install_type(hosts, {})).to eq(:simple_split)
-    end
-
-    it 'identifies a split install without frictionless agents' do
-      hosts = [master, puppetdb, console]
-      expect(subject.determine_install_type(hosts, {})).to eq(:simple_split)
-    end
-
-    it 'identifies an install with multiple agent versions as generic' do
-      new_agent = make_host('agent', :pe_ver => '2017.2', :roles => ['frictionless'])
-      hosts = [monolithic, agent, new_agent]
-      expect(subject.determine_install_type(hosts, {})).to eq(:generic)
-    end
-
-    it 'identifies an upgrade as generic' do
-      hosts = [monolithic, agent, agent, agent]
-      expect(subject.determine_install_type(hosts, {:type => :upgrade})).to eq(:generic)
-    end
-
-    it 'identifies a legacy PE version as generic' do
-      old_monolithic = make_host('monolithic', :pe_ver => '3.8', :roles => [ 'master', 'database', 'dashboard' ])
-      old_agent = make_host('agent', :pe_ver => '3.8', :roles => ['frictionless'])
-      hosts = [old_monolithic, old_agent, old_agent, old_agent]
-      expect(subject.determine_install_type(hosts, {})).to eq(:generic)
-    end
-
-    it 'identifies a non-standard install as generic' do
-      hosts = [monolithic, master, agent, agent, agent]
-      expect(subject.determine_install_type(hosts, {})).to eq(:generic)
-    end
-  end
-
   describe 'do_install' do
-    it 'chooses to do a simple monolithic install when appropriate' do
-      expect(subject).to receive(:simple_monolithic_install)
-      allow(subject).to receive(:determine_install_type).and_return(:simple_monolithic)
-
-      subject.do_install([])
-    end
-
     it 'can perform a simple installation' do
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
       allow( subject ).to receive( :fetch_pe ).and_return( true )
@@ -1241,78 +1184,6 @@ describe ClassMixedWithDSLInstallUtils do
       subject.do_install( hosts, opts )
     end
 
-  end
-
-  describe 'simple_monolithic_install' do
-    let(:monolithic) { make_host('monolithic', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => [ 'master', 'database', 'dashboard' ]) }
-    let(:el_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
-    let(:deb_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'debian-7-x86_64', :roles => ['frictionless']) }
-
-    before :each do
-      allow(subject).to receive(:on)
-      allow(subject).to receive(:configure_type_defaults_on)
-      allow(subject).to receive(:prepare_hosts)
-      allow(subject).to receive(:fetch_pe)
-      allow(subject).to receive(:prepare_host_installer_options)
-      allow(subject).to receive(:generate_installer_conf_file_for)
-      allow(subject).to receive(:deploy_frictionless_to_master)
-
-      allow(subject).to receive(:installer_cmd).with(monolithic, anything()).and_return("install master")
-      allow(subject).to receive(:installer_cmd).with(el_agent, anything()).and_return("install el agent")
-      allow(subject).to receive(:installer_cmd).with(deb_agent, anything()).and_return("install deb agent")
-
-      allow(subject).to receive(:stop_agent_on)
-      allow(subject).to receive(:sign_certificate_for)
-    end
-
-    describe 'configuring frictionless installer' do
-      it "skips the master's platform" do
-        expect(subject).not_to receive(:deploy_frictionless_to_master)
-
-        subject.simple_monolithic_install(monolithic, [el_agent, el_agent, el_agent])
-      end
-
-      it "adds frictionless install classes for other platforms" do
-        expect(subject).to receive(:deploy_frictionless_to_master).with(deb_agent)
-
-        subject.simple_monolithic_install(monolithic, [el_agent, deb_agent])
-      end
-    end
-
-    it 'installs on the master then on the agents' do
-      expect(subject).to receive(:on).with(monolithic, "install master").ordered
-      expect(subject).to receive(:on).with([el_agent, el_agent], "install el agent", anything()).ordered
-
-      subject.simple_monolithic_install(monolithic, [el_agent, el_agent])
-    end
-
-    it 'installs agents in parallel if their install command is the same' do
-      expect(subject).to receive(:on).with([el_agent, el_agent], "install el agent", :run_in_parallel => true)
-      expect(subject).to receive(:on).with([deb_agent, deb_agent], "install deb agent", :run_in_parallel => true)
-
-      subject.simple_monolithic_install(monolithic, [el_agent, el_agent, deb_agent, deb_agent])
-    end
-
-    it 'signs all certificates at once' do
-      agents = [el_agent, el_agent, deb_agent, deb_agent]
-      expect(subject).to receive(:sign_certificate_for).with(agents)
-
-      subject.simple_monolithic_install(monolithic, agents)
-    end
-
-    it 'stops the agents in parallel to avoid interference with tests' do
-      agents = [el_agent, el_agent, deb_agent, deb_agent]
-      expect(subject).to receive(:stop_agent_on).with([monolithic, *agents], :run_in_parallel => true)
-
-      subject.simple_monolithic_install(monolithic, agents)
-    end
-
-    it 'runs agents in parallel, only one time' do
-      agents = [el_agent, el_agent, deb_agent, deb_agent]
-      expect(subject).to receive(:on).with([monolithic, *agents], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).once
-
-      subject.simple_monolithic_install(monolithic, agents)
-    end
   end
 
   describe 'do_higgs_install' do
