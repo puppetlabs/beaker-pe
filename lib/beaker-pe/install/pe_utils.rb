@@ -900,7 +900,7 @@ module Beaker
         def generate_installer_conf_file_for(host, hosts, opts)
           beaker_answers_opts = setup_beaker_answers_opts(host, opts)
           answers = BeakerAnswers::Answers.create(
-            opts[:pe_ver] || host['pe_ver'], hosts, beaker_answers_opts
+            host['pe_ver'] || opts[:pe_ver], hosts, beaker_answers_opts
           )
           configuration = answers.installer_configuration_string(host)
 
