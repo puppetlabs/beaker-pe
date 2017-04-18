@@ -285,6 +285,22 @@ describe ClassMixedWithDSLInstallUtils do
       expect(subject.install_via_msi?(the_host)).to eq(false)
     end
 
+    it 'returns true if pe_version is 2016.5.1 and platform is windows-2008r2 bug' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['platform'] = 'windows-2008r2'
+      the_host['pe_ver'] = '2016.5.1'
+      expect(subject.install_via_msi?(the_host)).to eq(true)
+    end
+
+    it 'returns false if pe_version is 2017.1.0 and platform is windows-2008r2 bug' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['platform'] = 'windows-2008r2'
+      the_host['pe_ver'] = '2017.1.0'
+      expect(subject.install_via_msi?(the_host)).to eq(false)
+    end
+
   end
 
   describe 'higgs installer' do
@@ -1099,21 +1115,23 @@ describe ClassMixedWithDSLInstallUtils do
       #run installer on all hosts
       expect( subject ).to receive( :on ).with( hosts[0], /puppet-enterprise-installer/ ).once
       expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with(
-        hosts[1],
-        {
-          :puppet_agent_version => pa_version,
-          :puppet_agent_sha => nil,
-          :pe_ver => hosts[1][:pe_ver],
-          :puppet_collection => nil
-        }
+         hosts[1],
+         {
+            :puppet_agent_version   => nil,
+            :puppet_agent_sha       => nil,
+            :pe_ver                 => hosts[1][:pe_ver],
+            :puppet_collection      => nil,
+            :pe_promoted_builds_url => nil
+          } 
       ).once
       expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with(
         hosts[2],
         {
-          :puppet_agent_version => pa_version,
-          :puppet_agent_sha => nil,
-          :pe_ver => hosts[2][:pe_ver],
-          :puppet_collection => nil
+          :puppet_agent_version   => nil,
+          :puppet_agent_sha       => nil,
+          :pe_ver                 => hosts[2][:pe_ver],
+          :puppet_collection      => nil,
+          :pe_promoted_builds_url => nil
         }
       ).once
       hosts.each do |host|
@@ -1178,7 +1196,8 @@ describe ClassMixedWithDSLInstallUtils do
           :puppet_agent_version => pa_version,
           :puppet_agent_sha => nil,
           :pe_ver => hosts[1][:pe_ver],
-          :puppet_collection => nil
+          :puppet_collection => nil,
+          :pe_promoted_builds_url=>nil
         }
       ).once
       expect( subject ).to receive( :on ).with( hosts[2], /puppet-enterprise-installer/ ).once
@@ -1245,10 +1264,11 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive(
         :install_puppet_agent_pe_promoted_repo_on
       ).with( hosts[1], {
-        :puppet_agent_version => pa_version,
-        :puppet_agent_sha     => nil,
-        :pe_ver               => hosts[1][:pe_ver],
-        :puppet_collection    => nil
+        :puppet_agent_version  => pa_version,
+        :puppet_agent_sha      => nil,
+        :pe_ver                => hosts[1][:pe_ver],
+        :puppet_collection     => nil,
+        :pe_promoted_builds_url=> nil
       } )
       # expect( subject ).to receive( :on ).with( hosts[2], /puppet-enterprise-installer/ ).once
       hosts.each do |host|

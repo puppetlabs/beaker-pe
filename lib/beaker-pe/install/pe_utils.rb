@@ -535,14 +535,19 @@ module Beaker
                 :puppet_agent_version => get_puppet_agent_version(host, opts),
                 :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
                 :pe_ver => host[:pe_ver] || opts[:pe_ver],
-                :puppet_collection => host[:puppet_collection] || opts[:puppet_collection]
+                :puppet_collection => host[:puppet_collection] || opts[:puppet_collection], 
+                :pe_promoted_builds_url => host[:pe_promoted_builds_url] || opts[:pe_promoted_builds_url]
               })
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = [0, 1]
               acceptable_exit_codes << 2 if opts[:type] == :upgrade
-              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
-            #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
-            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')) || install_via_msi?(host))
+              if masterless
+                configure_type_defaults_on(host)
+                on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
+              else
+                setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+              end
+            elsif host['platform'] =~ /windows/
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
               msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
               install_msi_on(host, msi_path, {}, opts)
@@ -759,13 +764,16 @@ module Beaker
           Beaker::DSL::InstallUtils::FeatureFlags.new(opts).flag?(flag)
         end
 
+        # @deprecated the !version_is_less(host['pe_ver'], '3.99') can be removed once we no longer support pre 2015.2.0 PE versions
         # Check if windows host is able to frictionlessly install puppet
         # @param [Beaker::Host] host that we are checking if it is possible to install frictionlessly to
         # @return [Boolean] true if frictionless is supported and not affected by known bugs
         def install_via_msi?(host)
           #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
-          #powershell2 bug was fixed in PE 2016.4.3
-          (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) || (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99')))
+          #powershell2 bug was fixed in PE 2016.4.3, and PE 2017.1.0, but not 2016.5.z.
+          (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) ||
+            (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99'))) ||
+            (host['platform'] =~ /windows-2008r2/ && (!version_is_less(host['pe_ver'], '2016.4.99') && version_is_less(host['pe_ver'], '2016.5.99') && !version_is_less(host['pe_ver'], '3.99')))
         end
 
         # True if version is greater than or equal to MEEP_CLASSIFICATION_VERSION
