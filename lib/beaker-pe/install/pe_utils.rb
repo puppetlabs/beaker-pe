@@ -1,6 +1,7 @@
 [ 'aio_defaults', 'pe_defaults', 'puppet_utils', 'windows_utils' ].each do |lib|
     require "beaker/dsl/install_utils/#{lib}"
 end
+require 'beaker-pe/install/feature_flags'
 require "beaker-answers"
 require "timeout"
 require "json"
@@ -25,6 +26,18 @@ module Beaker
 
         # Version of PE when we switched from legacy installer to MEEP.
         MEEP_CUTOVER_VERSION = '2016.2.0'
+        # Version of PE when we switched to using meep for classification
+        # instead of PE node groups
+        MEEP_CLASSIFICATION_VERSION = '2017.2.0'
+        # PE-18799 temporary default used for meep classification check while
+        # we navigate the switchover.
+        # PE-18718 switch flag to true once beaker-pe, beaker-answers,
+        # beaker-pe-large-environments and pe_acceptance_tests are ready
+        DEFAULT_MEEP_CLASSIFICATION = false
+        MEEP_DATA_DIR = '/etc/puppetlabs/enterprise'
+        PE_CONF_FILE = "#{MEEP_DATA_DIR}/conf.d/pe.conf"
+        NODE_CONF_PATH = "#{MEEP_DATA_DIR}/conf.d/nodes"
+        BEAKER_MEEP_TMP = "pe_conf"
 
         # @!macro [new] common_opts
         #   @param [Hash{Symbol=>String}] opts Options to alter execution.
@@ -119,13 +132,11 @@ module Beaker
               pe_cmd += " -y"
             end
 
-            # This is a temporary workaround for PE-18516, because MEEP does not yet create a 2.0
-            # pe.conf when recovering configuration in Flanders. This will be fixed in PE-18170.
-            if opts[:type] == :upgrade && !version_is_less(host['pe_upgrade_ver'], '2017.1.0')
-              "#{pe_cmd} #{host['pe_installer_conf_setting']}"
-            # If there are no answer overrides, and we are doing an upgrade from 2016.2.0,
+            # If we are doing an upgrade from 2016.2.0,
             # we can assume there will be a valid pe.conf in /etc that we can re-use.
-            elsif opts[:answers].nil? && opts[:custom_answers].nil? && opts[:type] == :upgrade && !version_is_less(opts[:HOSTS][host.name][:pe_ver], '2016.2.0')
+            # We also expect that any custom_answers specified to beaker have been
+            # added to the pe.conf in /etc.
+            if opts[:type] == :upgrade && use_meep?(host[:previous_pe_ver])
               "#{pe_cmd}"
             else
               "#{pe_cmd} #{host['pe_installer_conf_setting']}"
@@ -180,7 +191,6 @@ module Beaker
         def fetch_pe_on_windows(host, opts)
           path = host['pe_dir'] || opts[:pe_dir]
           local = File.directory?(path)
-          version = host['pe_ver'] || opts[:pe_ver_win]
           filename = "#{host['dist']}"
           extension = ".msi"
           if local
@@ -285,11 +295,21 @@ module Beaker
           end
         end
 
-        #Classify the master so that it can deploy frictionless packages for a given host.
+        #Classify the master so that it can deploy frictionless packages for a given host. 
+        #This function does nothing when using meep for classification.
         # @param [Host] host The host to install pacakges for
         # @api private
         def deploy_frictionless_to_master(host)
-          klass = host['platform'].gsub(/-/, '_').gsub(/\./,'')
+          return if use_meep_for_classification?(master[:pe_ver], options)
+
+          platform = host['platform']
+
+          # We don't have a separate AIX 7.2 build, so it is
+          # classified as 7.1 for pe_repo purposes
+          if platform == "aix-7.2-power"
+            platform = "aix-7.1-power"
+          end
+          klass = platform.gsub(/-/, '_').gsub(/\./,'')
           if host['platform'] =~ /windows/
             if host['template'] =~ /i386/
               klass = "pe_repo::platform::windows_i386"
@@ -306,19 +326,12 @@ module Beaker
             on dashboard, "cd /opt/puppet/share/puppet-dashboard && /opt/puppet/bin/bundle exec /opt/puppet/bin/rake node:addclass[#{master},#{klass}]"
             on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
           else
-            # the new hotness
-            begin
-              require 'scooter'
-            rescue LoadError => e
-              @logger.notify('WARNING: gem scooter is required for frictionless installation post 3.8')
-              raise e
-            end
-            dispatcher = Scooter::HttpDispatchers::ConsoleDispatcher.new(dashboard)
+            _console_dispatcher = get_console_dispatcher_for_beaker_pe!
 
             # Check if we've already created a frictionless agent node group
             # to avoid errors creating the same node group when the beaker hosts file contains
             # multiple hosts with the same platform
-            node_group = dispatcher.get_node_group_by_name('Beaker Frictionless Agent')
+            node_group = _console_dispatcher.get_node_group_by_name('Beaker Frictionless Agent')
             if node_group.nil? || node_group.empty?
               node_group = {}
               node_group['name'] = "Beaker Frictionless Agent"
@@ -327,11 +340,13 @@ module Beaker
               node_group['classes'] ||= {}
             end
 
-            # add the pe_repo platform class
-            node_group['classes'][klass] = {}
+            # add the pe_repo platform class if it's not already present
+            if ! node_group['classes'].include?(klass)
+              node_group['classes'][klass] = {}
 
-            dispatcher.create_new_node_group_model(node_group)
-            on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
+              _console_dispatcher.create_new_node_group_model(node_group)
+              on master, puppet("agent -t"), :acceptable_exit_codes => [0,2]
+            end
           end
         end
 
@@ -365,6 +380,122 @@ module Beaker
         # @api private
         #
         def do_install hosts, opts = {}
+          # detect the kind of install we're doing
+          install_type = determine_install_type(hosts, opts)
+          case install_type
+          when :simple_monolithic
+            simple_monolithic_install(hosts.first, hosts.drop(1), opts)
+          when :simple_split
+            # This isn't implemented yet, so just do a generic install instead
+            #simple_split_install(hosts, opts)
+            generic_install(hosts, opts)
+          else
+            generic_install(hosts, opts)
+          end
+        end
+
+        def has_all_roles?(host, roles)
+          roles.all? {|role| host['roles'].include?(role)}
+        end
+
+        # Determine what kind of install is being performed
+        # @param [Array<Host>] hosts The sorted hosts to install or upgrade PE on
+        # @param [Hash{Symbol=>Symbol, String}] opts The options for how to install or upgrade PE
+        #
+        # @example
+        #   determine_install_type(hosts, {:type => :install, :pe_ver => '2017.2.0'})
+        #
+        # @return [Symbol]
+        #   One of :generic, :simple_monolithic, :simple_split
+        #   :simple_monolithic
+        #     returned when installing >=2016.4 with a monolithic master and
+        #     any number of frictionless agents
+        #   :simple_split
+        #     returned when installing >=2016.4 with a split install and any
+        #     number of frictionless agents
+        #   :generic
+        #     returned for any other install or upgrade
+        #
+        # @api private
+        def determine_install_type(hosts, opts)
+          # Do a generic install if this is masterless, not all the same PE version, an upgrade, or earlier than 2016.4
+          return :generic if opts[:masterless]
+          return :generic if hosts.map {|host| host['pe_ver']}.uniq.length > 1
+          return :generic if opts[:type] == :upgrade
+          return :generic if version_is_less(opts[:pe_ver] || hosts.first['pe_ver'], '2016.4')
+
+          mono_roles = ['master', 'database', 'dashboard']
+          if has_all_roles?(hosts.first, mono_roles) && hosts.drop(1).all? {|host| host['roles'].include?('frictionless')}
+            :simple_monolithic
+          elsif hosts[0]['roles'].include?('master') && hosts[1]['roles'].include?('database') && hosts[2]['roles'].include?('dashboard') && hosts.drop(3).all? {|host| host['roles'].include?('frictionless')}
+            :simple_split
+          else
+            :generic
+          end
+        end
+
+        # Install PE on a monolithic master and some number of frictionless agents.
+        # @param [Host] master The node to install the master on
+        # @param [Array<Host>] agents The nodes to install agents on
+        # @param [Hash{Symbol=>Symbol, String}] opts The options for how to install or upgrade PE
+        #
+        # @example
+        #   simple_monolithic_install(master, agents, {:type => :install, :pe_ver => '2017.2.0'})
+        #
+        # @return nil
+        #
+        # @api private
+        def simple_monolithic_install(master, agents, opts={})
+          step "Performing a standard monolithic install with frictionless agents"
+          all_hosts = [master, *agents]
+          configure_type_defaults_on(all_hosts)
+
+          # Set PE distribution on the master, create working dir
+          prepare_hosts([master], opts)
+          fetch_pe([master], opts)
+          prepare_host_installer_options(master)
+          generate_installer_conf_file_for(master, [master], opts)
+          on master, installer_cmd(master, opts)
+
+          step "Setup frictionless installer on the master" do
+            agents.each do |agent|
+              # If We're *not* running the classic installer, we want
+              # to make sure the master has packages for us.
+              if agent['platform'] != master['platform'] # only need to do this if platform differs
+                deploy_frictionless_to_master(agent)
+              end
+            end
+          end
+
+          step "Install agents" do
+            agents.group_by {|agent| installer_cmd(agent, opts)}.each do |cmd, agents|
+              on agents, cmd, :run_in_parallel => true
+            end
+          end
+
+          step "Sign agent certificates" do
+            # This will sign all cert requests
+            sign_certificate_for(agents)
+          end
+
+          step "Stop puppet agents to avoid interfering with tests" do
+            stop_agent_on(all_hosts, :run_in_parallel => true)
+          end
+
+          step "Run puppet to setup mcollective and pxp-agent" do
+            on all_hosts, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
+
+            #Workaround for windows frictionless install, see BKR-943 for the reason
+            agents.select {|agent| agent['platform'] =~ /windows/}.each do |agent|
+              client_datadir = agent.puppet['client_datadir']
+              on(agent, puppet("resource file \"#{client_datadir}\" ensure=absent force=true"))
+            end
+          end
+        end
+
+        def generic_install hosts, opts = {}
+          step "Installing PE on a generic set of hosts"
+
           masterless = opts[:masterless]
           opts[:type] = opts[:type] || :install
           unless masterless
@@ -380,45 +511,13 @@ module Beaker
             hosts_agent_only, hosts_not_agent_only = [], hosts.dup
           end
 
-          # On July 8th, 2016, the GPG key used to sign repos inside PE tarballs
-          # expired. Add a temporary, extended key to the host first so that it
-          # can still install those old PE tarballs.
-          add_extended_gpg_key_to_hosts(hosts, opts)
+          # On January 5th, 2017, the extended GPG key has expired. Rather then
+          # every few months updating this gem to point to a new key for PE versions
+          # less then PE 2016.4.0 we are going to just ignore the warning when installing
+          ignore_gpg_key_warning_on_hosts(hosts, opts)
 
           # Set PE distribution for all the hosts, create working dir
-          use_all_tar = ENV['PE_USE_ALL_TAR'] == 'true'
-          hosts.each do |host|
-            next if agent_only_check_needed && hosts_agent_only.include?(host)
-            host['pe_installer'] ||= 'puppet-enterprise-installer'
-            if host['platform'] !~ /windows|osx/
-              platform = use_all_tar ? 'all' : host['platform']
-              version = host['pe_ver'] || opts[:pe_ver]
-              host['dist'] = "puppet-enterprise-#{version}-#{platform}"
-            elsif host['platform'] =~ /osx/
-              version = host['pe_ver'] || opts[:pe_ver]
-              host['dist'] = "puppet-enterprise-#{version}-#{host['platform']}"
-            elsif host['platform'] =~ /windows/
-              version = host[:pe_ver] || opts['pe_ver_win']
-              is_config_32 = true == (host['ruby_arch'] == 'x86') || host['install_32'] || opts['install_32']
-              should_install_64bit = !(version_is_less(version, '3.4')) && host.is_x86_64? && !is_config_32
-              #only install 64bit builds if
-              # - we are on pe version 3.4+
-              # - we do not have install_32 set on host
-              # - we do not have install_32 set globally
-              if !(version_is_less(version, '3.99'))
-                if should_install_64bit
-                  host['dist'] = "puppet-agent-#{version}-x64"
-                else
-                  host['dist'] = "puppet-agent-#{version}-x86"
-                end
-              elsif should_install_64bit
-                host['dist'] = "puppet-enterprise-#{version}-x64"
-              else
-                host['dist'] = "puppet-enterprise-#{version}"
-              end
-            end
-            host['working_dir'] = host.tmpdir(Time.new.strftime("%Y-%m-%d_%H.%M.%S"))
-          end
+          prepare_hosts(hosts_not_agent_only, opts)
 
           fetch_pe(hosts_not_agent_only, opts)
 
@@ -429,10 +528,8 @@ module Beaker
           end
 
           install_hosts.each do |host|
-            #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
-            is_windows_msi_and_aio = (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.3.0') && !version_is_less(host['pe_ver'], '3.99')))
 
-            if agent_only_check_needed && hosts_agent_only.include?(host) || is_windows_msi_and_aio
+            if agent_only_check_needed && hosts_agent_only.include?(host) || install_via_msi?(host)
               host['type'] = 'aio'
               install_puppet_agent_pe_promoted_repo_on(host, { :puppet_agent_version => host[:puppet_agent_version] || opts[:puppet_agent_version],
                                                                :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
@@ -449,7 +546,7 @@ module Beaker
                 setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
               end
             #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
-            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')))
+            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')) || install_via_msi?(host))
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
               msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
               install_msi_on(host, msi_path, {}, opts)
@@ -480,9 +577,12 @@ module Beaker
                 setup_defaults_and_config_helper_on(host, master, acceptable_codes)
               else
                 prepare_host_installer_options(host)
-                generate_installer_conf_file_for(host, hosts, opts)
+                register_feature_flags!(opts)
+                setup_pe_conf(host, hosts, opts)
+
                 on host, installer_cmd(host, opts)
                 configure_type_defaults_on(host)
+                download_pe_conf_if_master(host)
               end
             end
             # On each agent, we ensure the certificate is signed
@@ -530,10 +630,6 @@ module Beaker
               end
             end
 
-            install_hosts.each do |host|
-              wait_for_host_in_dashboard(host)
-            end
-
             # only appropriate for pre-3.9 builds
             if version_is_less(master[:pe_ver], '3.99')
               if pre30master
@@ -542,6 +638,11 @@ module Beaker
                 task = 'defaultgroup:ensure_default_group'
               end
               on dashboard, "/opt/puppet/bin/rake -sf /opt/puppet/share/puppet-dashboard/Rakefile #{task} RAILS_ENV=production"
+            end
+
+            # PE-18799 replace the version_is_less with a use_meep_for_classification? test
+            if use_meep_for_classification?(master[:pe_ver], options)
+              configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
             end
 
             step "Final puppet agent run" do
@@ -564,26 +665,152 @@ module Beaker
           end
         end
 
+        # Prepares hosts for rest of {#do_install} operations.
+        # This includes doing these tasks:
+        # - setting 'pe_installer' property on hosts
+        # - setting 'dist' property on hosts
+        # - creating and setting 'working_dir' property on hosts
+        #
+        # @note that these steps aren't necessary for all hosts. Specifically,
+        #   'agent_only' hosts do not require these steps to be executed.
+        #
+        # @param [Array<Host>] hosts Hosts to prepare
+        # @param [Hash{Symbol=>String}] local_options Local options, used to
+        #   pass misc configuration required for the prep steps
+        #
+        # @return nil
+        def prepare_hosts(hosts, local_options={})
+          use_all_tar = ENV['PE_USE_ALL_TAR'] == 'true'
+          hosts.each do |host|
+            host['pe_installer'] ||= 'puppet-enterprise-installer'
+            if host['platform'] !~ /windows|osx/
+              platform = use_all_tar ? 'all' : host['platform']
+              version = host['pe_ver'] || local_options[:pe_ver]
+              host['dist'] = "puppet-enterprise-#{version}-#{platform}"
+            elsif host['platform'] =~ /osx/
+              version = host['pe_ver'] || local_options[:pe_ver]
+              host['dist'] = "puppet-enterprise-#{version}-#{host['platform']}"
+            elsif host['platform'] =~ /windows/
+              version = host[:pe_ver] || local_options['pe_ver_win']
+              is_config_32 = true == (host['ruby_arch'] == 'x86') || host['install_32'] || local_options['install_32']
+              should_install_64bit = !(version_is_less(version, '3.4')) && host.is_x86_64? && !is_config_32
+              #only install 64bit builds if
+              # - we are on pe version 3.4+
+              # - we do not have install_32 set on host
+              # - we do not have install_32 set globally
+              if !(version_is_less(version, '3.99'))
+                if should_install_64bit
+                  host['dist'] = "puppet-agent-#{version}-x64"
+                else
+                  host['dist'] = "puppet-agent-#{version}-x86"
+                end
+              elsif should_install_64bit
+                host['dist'] = "puppet-enterprise-#{version}-x64"
+              else
+                host['dist'] = "puppet-enterprise-#{version}"
+              end
+            end
+            host['working_dir'] = host.tmpdir(Time.new.strftime("%Y-%m-%d_%H.%M.%S"))
+          end
+        end
+
+        # Gets the puppet-agent version, hopefully from the host or local options.
+        # Will fall back to reading the `aio_agent_version` property on the master
+        # if neither of those two options are passed
+        #
+        # @note This method does have a side-effect: if it reads the
+        #   `aio_agent_version` property from master, it will store it in the local
+        #   options hash so that it won't have to do this more than once.
+        #
+        # @param [Beaker::Host] host Host to get puppet-agent for
+        # @param [Hash{Symbol=>String}] local_options local method options hash
+        #
+        # @return [String] puppet-agent version to install
+        def get_puppet_agent_version(host, local_options={})
+          puppet_agent_version = host[:puppet_agent_version] || local_options[:puppet_agent_version]
+          return puppet_agent_version if puppet_agent_version
+          log_prefix = "No :puppet_agent_version in host #{host} or local options."
+          fail_message = "#{log_prefix} Could not read facts from master to determine puppet_agent_version"
+          # we can query the master because do_install is called passing
+          # the {#sorted_hosts}, so we know the master will be installed
+          # before the agents
+          facts_result = on(master, 'puppet facts')
+          raise ArgumentError, fail_message if facts_result.exit_code != 0
+          facts_hash = JSON.parse(facts_result.stdout.chomp)
+          puppet_agent_version = facts_hash['values']['aio_agent_version']
+          raise ArgumentError, fail_message if puppet_agent_version.nil?
+          logger.warn("#{log_prefix} Read puppet-agent version #{puppet_agent_version} from master")
+          # saving so that we don't have to query the master more than once
+          local_options[:puppet_agent_version] = puppet_agent_version
+          puppet_agent_version
+        end
+
         # True if version is greater than or equal to MEEP_CUTOVER_VERSION (2016.2.0)
         def use_meep?(version)
           !version_is_less(version, MEEP_CUTOVER_VERSION)
         end
 
-        # On July 8th, 2016, the gpg key that was shipped and used to sign repos in
-        # PE tarballs expired. This affects all PE version earlier then 3.8.5, and
-        # versions between 2015.2 to 2016.1.2.
+        # Tests if a feature flag has been set in the answers hash provided to beaker
+        # options. Assumes a 'feature_flags' hash is present in the answers and looks for
+        # +flag+ within it.
         #
-        # PE 3.8.5 and 2016.1.2 shipped with a version of the key that had it's
-        # expiration date extended by 6 months (to Janurary 2017).
-        def add_extended_gpg_key_to_hosts(hosts, opts)
+        # @param flag String flag to lookup
+        # @param opts Hash options hash to inspect
+        # @return true if +flag+ is true or 'true' in the feature_flags hash,
+        #   false otherwise. However, returns nil if there is no +flag+ in the
+        #   answers hash at all
+        def feature_flag?(flag, opts)
+          Beaker::DSL::InstallUtils::FeatureFlags.new(opts).flag?(flag)
+        end
+
+        # @deprecated the !version_is_less(host['pe_ver'], '3.99') can be removed once we no longer support pre 2015.2.0 PE versions
+        # Check if windows host is able to frictionlessly install puppet
+        # @param [Beaker::Host] host that we are checking if it is possible to install frictionlessly to
+        # @return [Boolean] true if frictionless is supported and not affected by known bugs
+        def install_via_msi?(host)
+          #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
+          #powershell2 bug was fixed in PE 2016.4.3, and PE 2017.1.0, but not 2016.5.z.
+          (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) ||
+            (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99'))) ||
+            (host['platform'] =~ /windows-2008r2/ && (!version_is_less(host['pe_ver'], '2016.4.99') && version_is_less(host['pe_ver'], '2016.5.99') && !version_is_less(host['pe_ver'], '3.99')))
+        end
+
+        # True if version is greater than or equal to MEEP_CLASSIFICATION_VERSION
+        # (PE-18718) AND the temporary feature flag is true.
+        #
+        # The temporary feature flag is pe_modules_next and can be set in
+        # the :answers hash given in beaker's host.cfg, inside a feature_flags
+        # hash. It will also be picked up from the environment as
+        # PE_MODULES_NEXT. (See register_feature_flags!())
+        #
+        # The :answers hash value will take precedence over the env variable.
+        #
+        # @param version String the current PE version
+        # @param opts Hash options hash to inspect for :answers
+        # @return Boolean true if version and flag allows for meep classification
+        #   feature.
+        def use_meep_for_classification?(version, opts)
+          # PE-19470 remove vv
+          register_feature_flags!(opts)
+
+          temporary_flag = feature_flag?('pe_modules_next', opts)
+          temporary_flag = DEFAULT_MEEP_CLASSIFICATION if temporary_flag.nil?
+          # ^^
+
+          !version_is_less(version, MEEP_CLASSIFICATION_VERSION) && temporary_flag
+        end
+
+        # For PE 3.8.5 to PE 2016.1.2 they have an expired gpg key. This method is
+        # for deb nodes to ignore the gpg-key expiration warning
+        def ignore_gpg_key_warning_on_hosts(hosts, opts)
           hosts.each do |host|
             # RPM based platforms do not seem to be effected by an expired GPG key,
             # while deb based platforms are failing.
             if host['platform'] =~ /debian|ubuntu/
               host_ver = host['pe_ver'] || opts['pe_ver']
 
-              if version_is_less(host_ver, '3.8.5') || (!version_is_less(host_ver, '2015.2.0') && version_is_less(host_ver, '2016.1.2'))
-                on(host, 'curl http://apt.puppetlabs.com/DEB-GPG-KEY-puppetlabs | apt-key add -')
+              if version_is_less(host_ver, '3.8.7') || (!version_is_less(host_ver, '2015.2.0') && version_is_less(host_ver, '2016.4.0'))
+                on(host, "echo 'APT { Get { AllowUnauthenticated \"1\"; }; };' >> /etc/apt/apt.conf")
               end
             end
           end
@@ -630,7 +857,39 @@ module Beaker
           beaker_answers_opts[:include_legacy_database_defaults] =
             opts[:type] == :upgrade && !use_meep?(host['previous_pe_ver'])
 
-          opts.merge(beaker_answers_opts)
+          modified_opts = opts.merge(beaker_answers_opts)
+
+          if feature_flag?('pe_modules_next', opts) && !modified_opts.include?(:meep_schema_version)
+            modified_opts[:meep_schema_version] = '2.0'
+          end
+
+          modified_opts
+        end
+
+        # The pe-modules-next package is being used for isolating large scale
+        # feature development of PE module code. The feature flag is a pe.conf
+        # setting 'feature_flags::pe_modules_next', which if set true will
+        # cause the installer shim to install the pe-modules-next package
+        # instead of pe-modules.
+        #
+        # This answer can be explicitly added to Beaker's cfg file by adding it
+        # to the :answers section.
+        #
+        # But it can also be picked up transparently from CI via the
+        # PE_MODULES_NEXT environment variable.  If this is set 'true', then
+        # the opts[:answers] will be set with feature_flags::pe_modules_next.
+        #
+        # Answers set in Beaker's config file will take precedence over the
+        # environment variable.
+        #
+        # NOTE: This has implications for upgrades, because upgrade testing
+        # will need the flag, but upgrades from different pe.conf schema (or no
+        # pe.conf) will need to generate a pe.conf, and that workflow is likely
+        # to happen in the installer shim.  If we simply supply a good pe.conf
+        # via beaker-answers, then we have bypassed the pe.conf generation
+        # aspect of the upgrade workflow. (See PE-19438)
+        def register_feature_flags!(opts)
+          Beaker::DSL::InstallUtils::FeatureFlags.new(opts).register_flags!
         end
 
         # Generates a Beaker Answers object for the passed *host* and creates
@@ -745,9 +1004,14 @@ module Beaker
           return true if version_is_less(host['pe_ver'], '2015.2.0')
 
           attempts_limit = options[:pe_console_status_attempts] || 9
+          # Workaround for PE-14857. The classifier status service at the
+          # default level is broken in 2016.1.1. Instead we need to query
+          # the classifier service at critical level and check for service
+          # status
+          query_params = (host['pe_ver'] == '2016.1.1' ? '?level=critical' : '')
           step 'Check Console Status Endpoint' do
             match = repeat_fibonacci_style_for(attempts_limit) do
-              output = on(host, "curl -s -k https://localhost:4433/status/v1/services --cert /etc/puppetlabs/puppet/ssl/certs/#{host}.pem --key /etc/puppetlabs/puppet/ssl/private_keys/#{host}.pem --cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem", :accept_all_exit_codes => true)
+              output = on(host, "curl -s -k https://localhost:4433/status/v1/services#{query_params} --cert /etc/puppetlabs/puppet/ssl/certs/#{host}.pem --key /etc/puppetlabs/puppet/ssl/private_keys/#{host}.pem --cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem", :accept_all_exit_codes => true)
               begin
                 output = JSON.parse(output.stdout)
                 match = output['classifier-service']['state'] == 'running'
@@ -834,6 +1098,7 @@ module Beaker
             hosts.each do |host|
               prep_host_for_upgrade(host, opts, path)
             end
+
             do_install(sorted_hosts, opts.merge({:type => :upgrade, :set_console_password => set_console_password}))
             opts['upgrade'] = true
           end
@@ -970,6 +1235,240 @@ module Beaker
           scp_to host, "#{local_dir}/#{filename}#{extension}", host['working_dir']
         end
 
+        # Being able to modify PE's classifier requires the Scooter gem and
+        # helpers which are in beaker-pe-large-environments.
+        def get_console_dispatcher_for_beaker_pe(raise_exception = false)
+          # XXX RE-8616, once scooter is public, we can remove this and just
+          # reference ConsoleDispatcher directly.
+          if !respond_to?(:get_dispatcher)
+            begin
+              require 'scooter'
+              Scooter::HttpDispatchers::ConsoleDispatcher.new(dashboard)
+            rescue LoadError => e
+              logger.notify('WARNING: gem scooter is required for frictionless installation post 3.8')
+              raise e if raise_exception
+
+              return nil
+            end
+          else
+            get_dispatcher
+          end
+        end
+
+        # Will raise a LoadError if unable to require Scooter.
+        def get_console_dispatcher_for_beaker_pe!
+          get_console_dispatcher_for_beaker_pe(true)
+        end
+
+        # In PE versions >= 2017.1.0, allows you to configure the puppet agent
+        # service for all nodes.
+        #
+        # @param parameters [Hash] - agent profile parameters
+        # @option parameters [Boolean] :managed - whether or not to manage the
+        #   agent resource at all (Optional, defaults to true).
+        # @option parameters [String] :ensure - 'stopped', 'running'
+        # @option parameters [Boolean] :enabled - whether the service will be
+        #   enabled (for restarts)
+        # @raise [StandardError] if master version is less than 2017.1.0
+        def configure_puppet_agent_service(parameters)
+          raise(StandardError, "Can only manage puppet service in PE versions >= 2017.1.0; tried for #{master['pe_ver']}") if version_is_less(master['pe_ver'], '2017.1.0')
+          puppet_managed = parameters.include?(:managed) ? parameters[:managed] : true
+          puppet_ensure = parameters[:ensure]
+          puppet_enabled = parameters[:enabled]
+
+          msg = puppet_managed ?
+            "Configure agents '#{puppet_ensure}' and #{puppet_enabled ? 'enabled' : 'disabled'}" :
+            "Do not manage agents"
+
+          step msg do
+            # PE-18799 and remove this conditional
+            if use_meep_for_classification?(master[:pe_ver], options)
+              group_name = 'Puppet Enterprise Agent'
+              class_name = 'pe_infrastructure::agent'
+            else
+              group_name = 'PE Agent'
+              class_name = 'puppet_enterprise::profile::agent'
+            end
+
+            # update pe conf
+            # only the pe_infrastructure::agent parameters are relevant in pe.conf
+            update_pe_conf({
+              "pe_infrastructure::agent::puppet_service_managed" => puppet_managed,
+              "pe_infrastructure::agent::puppet_service_ensure" => puppet_ensure,
+              "pe_infrastructure::agent::puppet_service_enabled" => puppet_enabled,
+            })
+
+            if _console_dispatcher = get_console_dispatcher_for_beaker_pe
+              agent_group = _console_dispatcher.get_node_group_by_name(group_name)
+              agent_class = agent_group['classes'][class_name]
+              agent_class['puppet_service_managed'] = puppet_managed
+              agent_class['puppet_service_ensure'] = puppet_ensure
+              agent_class['puppet_service_enabled'] = puppet_enabled
+
+              _console_dispatcher.update_node_group(agent_group['id'], agent_group)
+            end
+          end
+        end
+
+        # Given a hash of parameters, updates the primary master's pe.conf, adding or
+        # replacing, or removing the given parameters.
+        #
+        # To remove a parameter, pass a nil as its value
+        #
+        # Handles stringifying and quoting namespaced keys, and also preparing non
+        # string values using Hocon::ConfigValueFactory.
+        #
+        # Logs the state of pe.conf before and after.
+        #
+        # @example
+        #   # Assuming pe.conf looks like:
+        #   # {
+        #   # "bar": "baz"
+        #   # "old": "item"
+        #   # }
+        #
+        #   update_pe_conf(
+        #     {
+        #       "foo" => "a",
+        #       "bar" => "b",
+        #       "old" => nil,
+        #     }
+        #   )
+        #
+        #   # Will produce a pe.conf like:
+        #   # {
+        #   # "bar": "b"
+        #   # "foo": "a"
+        #   # }
+        #
+        # @param parameters [Hash] Hash of parameters to be included in pe.conf.
+        # @param pe_conf_file [String] The file to update
+        #   (/etc/puppetlabs/enterprise/conf.d/pe.conf by default)
+        def update_pe_conf(parameters, pe_conf_file = PE_CONF_FILE)
+          step "Update #{pe_conf_file} with #{parameters}" do
+            hocon_file_edit_in_place_on(master, pe_conf_file) do |host,doc|
+              updated_doc = parameters.reduce(doc) do |pe_conf,param|
+                key, value = param
+
+                hocon_key = quoted_hocon_key(key)
+
+                hocon_value = case value
+                when String
+                  # ensure unquoted string values are quoted for uniformity
+                  then value.match(/^[^"]/) ? %Q{"#{value}"} : value
+                else Hocon::ConfigValueFactory.from_any_ref(value, nil)
+                end
+
+                updated = case value
+                when String
+                  pe_conf.set_value(hocon_key, hocon_value)
+                when nil
+                  pe_conf.remove_value(hocon_key)
+                else
+                  pe_conf.set_config_value(hocon_key, hocon_value)
+                end
+
+                updated
+              end
+
+              # return the modified document
+              updated_doc
+            end
+            on(master, "cat #{pe_conf_file}")
+          end
+        end
+
+        # If the key is unquoted and does not contain pathing ('.'),
+        # quote to ensure that puppet namespaces are protected
+        #
+        # @example
+        #   quoted_hocon_key("puppet_enterprise::database_host")
+        #   # => '"puppet_enterprise::database_host"'
+        #
+        def quoted_hocon_key(key)
+          case key
+          when /^[^"][^.]+/
+            then %Q{"#{key}"}
+          else key
+          end
+        end
+
+        # @return a Ruby object of any root key in pe.conf.
+        #
+        # @param key [String] to lookup
+        # @param pe_conf_path [String] defaults to /etc/puppetlabs/enterprise/conf.d/pe.conf
+        def get_unwrapped_pe_conf_value(key, pe_conf_path = PE_CONF_FILE)
+          file_contents = on(master, "cat #{pe_conf_path}").stdout
+          # Seem to need to use ConfigFactory instead of ConfigDocumentFactory
+          # to get something that we can read values from?
+          doc = Hocon::ConfigFactory.parse_string(file_contents)
+          hocon_key = quoted_hocon_key(key)
+          doc.has_path?(hocon_key) ?
+            doc.get_value(hocon_key).unwrapped :
+            nil
+        end
+
+        # Creates a new /etc/puppetlabs/enterprise/conf.d/nodes/*.conf file for the
+        # given host's certname, and adds the passed parameters, or updates with the
+        # passed parameters if the file already exists.
+        #
+        # Does not remove an empty file.
+        #
+        # @param host [Beaker::Host] to create a node file for
+        # @param parameters [Hash] of key value pairs to add to the nodes conf file
+        # @param node_conf_path [String] defaults to /etc/puppetlabs/enterprise/conf.d/nodes
+        def create_or_update_node_conf(host, parameters, node_conf_path = NODE_CONF_PATH)
+          node_conf_file = "#{node_conf_path}/#{host.node_name}.conf"
+          step "Create or Update #{node_conf_file} with #{parameters}" do
+            if !master.file_exist?(node_conf_file)
+              if !master.file_exist?(node_conf_path)
+                # potentially create the nodes directory
+                on(master, "mkdir #{node_conf_path}")
+              end
+              # The hocon gem will create a list of comma separated parameters
+              # on the same line unless we start with something in the file.
+              create_remote_file(master, node_conf_file, %Q|{\n}\n|)
+              on(master, "chown pe-puppet #{node_conf_file}")
+            end
+            update_pe_conf(parameters, node_conf_file)
+          end
+        end
+
+        def setup_pe_conf(host, hosts, opts={})
+          if opts[:type] == :upgrade && use_meep?(host['previous_pe_ver'])
+            # In this scenario, Beaker runs the installer such that we make
+            # use of recovery code in the configure face of the installer.
+            if host['roles'].include?('master')
+              step "Updating #{MEEP_DATA_DIR}/conf.d with answers/custom_answers" do
+                # merge answers into pe.conf
+                if opts[:answers] && !opts[:answers].empty?
+                  update_pe_conf(opts[:answers])
+                end
+
+                if opts[:custom_answers] && !opts[:custom_answers].empty?
+                  update_pe_conf(opts[:custom_answers])
+                end
+              end
+            else
+              step "Uploading #{BEAKER_MEEP_TMP}/conf.d that was generated on the master" do
+                # scp conf.d to host
+                scp_to(host, "#{BEAKER_MEEP_TMP}/conf.d", MEEP_DATA_DIR)
+              end
+            end
+          else
+            # Beaker creates a fresh pe.conf using beaker-answers, as if we were doing an install
+            generate_installer_conf_file_for(host, hosts, opts)
+          end
+        end
+
+        def download_pe_conf_if_master(host)
+          if host['roles'].include?('master')
+            step "Downloading generated #{MEEP_DATA_DIR}/conf.d locally" do
+              # scp conf.d over from master
+              scp_from(host, "#{MEEP_DATA_DIR}/conf.d", BEAKER_MEEP_TMP)
+            end
+          end
+        end
       end
     end
   end

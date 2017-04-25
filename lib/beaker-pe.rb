@@ -18,7 +18,6 @@ module Beaker
   end
 end
 
-
 # Boilerplate DSL inclusion mechanism:
 # First we register our module with the Beaker DSL
 Beaker::DSL.register( Beaker::DSL::PE )

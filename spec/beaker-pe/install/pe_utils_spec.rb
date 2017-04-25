@@ -1,5 +1,5 @@
 require 'spec_helper'
-require 'beaker'
+require 'scooter'
 
 class ClassMixedWithDSLInstallUtils
   include Beaker::DSL::InstallUtils
@@ -10,10 +10,11 @@ class ClassMixedWithDSLInstallUtils
   include Beaker::DSL::Patterns
   include Beaker::DSL::PE
 
-  attr_accessor :hosts, :metadata
+  attr_accessor :hosts, :metadata, :options
 
   def initialize
     @metadata = {}
+    @options = {}
   end
 
   # Because some the methods now actually call out to the `step` method, we need to
@@ -251,6 +252,54 @@ describe ClassMixedWithDSLInstallUtils do
       the_host[:pe_debug] = true
       expect( subject.installer_cmd( the_host, {} ) ).to be === "cd /tmp && curl --tlsv1 -kO https://testmaster:8140/packages/3.8.0/install.bash && bash -x install.bash"
     end
+  end
+
+  describe 'install_via_msi?' do
+    it 'returns true if pe_version is before PE 2016.4.0' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['pe_ver'] = '2015.2.3'
+      expect(subject.install_via_msi?(the_host)).to eq(true)
+    end
+
+    it 'returns nil if pe_version is PE 2016.4.0 or newer' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['pe_ver'] = '2016.4.2'
+      expect(subject.install_via_msi?(the_host)).to be nil
+    end
+
+    it 'returns true if pe_version is 2016.4.0 and platform is windows-2008r2 bug' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['platform'] = 'windows-2008r2'
+      the_host['pe_ver'] = '2016.4.0'
+      expect(subject.install_via_msi?(the_host)).to eq(true)
+    end
+
+    it 'returns false if pe_version is 2016.4.3 and platform is windows-2008r2 bug' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['platform'] = 'windows-2008r2'
+      the_host['pe_ver'] = '2016.4.3'
+      expect(subject.install_via_msi?(the_host)).to eq(false)
+    end
+
+    it 'returns true if pe_version is 2016.5.1 and platform is windows-2008r2 bug' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['platform'] = 'windows-2008r2'
+      the_host['pe_ver'] = '2016.5.1'
+      expect(subject.install_via_msi?(the_host)).to eq(true)
+    end
+
+    it 'returns false if pe_version is 2017.1.0 and platform is windows-2008r2 bug' do
+      the_host = winhost.dup
+      the_host['roles'] = ['frictionless']
+      the_host['platform'] = 'windows-2008r2'
+      the_host['pe_ver'] = '2017.1.0'
+      expect(subject.install_via_msi?(the_host)).to eq(false)
+    end
 
   end
 
@@ -332,7 +381,7 @@ describe ClassMixedWithDSLInstallUtils do
     end
 
     def slice_installer_options(host)
-      host.select { |k,v| [ :pe_installer_conf_file, :pe_installer_conf_setting].include?(k) }
+      host.host_hash.select { |k,v| [ :pe_installer_conf_file, :pe_installer_conf_setting].include?(k) }
     end
 
     context 'when version < 2016.2.0' do
@@ -359,6 +408,82 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'use_meep_for_classification?' do
+    let(:feature_flag) { nil }
+    let(:environment_feature_flag) { nil }
+    let(:answers) do
+      {
+        :answers => {
+          'feature_flags' => {
+            'pe_modules_next' => feature_flag,
+          },
+        },
+      }
+    end
+    let(:options) do
+      feature_flag.nil? ?
+        opts :
+        opts.merge(answers)
+    end
+    let(:host) { unixhost }
+
+    before(:each) do
+      subject.options = options
+      if !environment_feature_flag.nil?
+        ENV['PE_MODULES_NEXT'] = environment_feature_flag
+      end
+    end
+
+    after(:each) do
+      ENV.delete('PE_MODULES_NEXT')
+    end
+
+    it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+    it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+
+    context 'feature flag false' do
+      let(:feature_flag) { false }
+
+      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+    end
+
+    context 'feature flag true' do
+      let(:feature_flag) { true }
+
+      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
+    end
+
+    context 'environment feature flag true' do
+      let(:environment_feature_flag) { 'true' }
+
+      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
+
+      context 'answers feature flag false' do
+        let(:feature_flag) { false }
+
+        it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+        it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+      end
+    end
+
+    context 'environment feature flag false' do
+      let(:environment_feature_flag) { 'false' }
+
+      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+
+      context 'answers feature flag true' do
+        let(:feature_flag) { true }
+
+        it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
+        it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
+      end
+    end
+  end
+
   describe 'generate_installer_conf_file_for' do
     let(:master) { hosts.first }
 
@@ -381,6 +506,104 @@ describe ClassMixedWithDSLInstallUtils do
         %r{\{.*"puppet_enterprise::puppet_master_host": "#{master.hostname}"}m
       )
       subject.generate_installer_conf_file_for(master, hosts, opts)
+    end
+  end
+
+  describe 'register_feature_flags!' do
+    it 'does nothing if no flag is set' do
+      expect(subject.register_feature_flags!(opts)).to eq(opts)
+      expect(opts[:answers]).to be_nil
+    end
+
+    context 'with flag set' do
+      before(:each) do
+        ENV['PE_MODULES_NEXT'] = 'true'
+      end
+
+      after(:each) do
+        ENV.delete('PE_MODULES_NEXT')
+      end
+
+      it 'updates answers' do
+        expect(subject.register_feature_flags!(opts)).to match(opts.merge({
+          :answers => {
+            :feature_flags => {
+              :pe_modules_next => true
+            }
+          }
+        }))
+      end
+
+      context 'and answer explicitly set' do
+        let(:answers) do
+          {
+            :answers => {
+              'feature_flags' => {
+                'pe_modules_next' => false
+              }
+            }
+          }
+        end
+
+        before(:each) do
+          opts.merge!(answers)
+        end
+
+        it 'keeps explicit setting' do
+          expect(subject.register_feature_flags!(opts)).to match(opts.merge(answers))
+        end
+      end
+    end
+  end
+
+  describe 'feature_flag?' do
+
+    context 'without :answers' do
+      it 'is nil for pe_modules_next' do
+        expect(subject.feature_flag?('pe_modules_next', opts)).to eq(nil)
+        expect(subject.feature_flag?(:pe_modules_next, opts)).to eq(nil)
+      end
+    end
+
+    context 'with :answers but no flag' do
+      before(:each) do
+        opts[:answers] = {}
+      end
+
+      it 'is nil for pe_modules_next' do
+        expect(subject.feature_flag?('pe_modules_next', opts)).to eq(nil)
+        expect(subject.feature_flag?(:pe_modules_next, opts)).to eq(nil)
+      end
+    end
+
+    context 'with answers set' do
+      let(:options) do
+        opts.merge(
+          :answers => {
+            'feature_flags' => {
+              'pe_modules_next' => flag
+            }
+          }
+        )
+      end
+
+      context 'false' do
+        let(:flag) { false }
+        it { expect(subject.feature_flag?('pe_modules_next', options)).to eq(false) }
+        it { expect(subject.feature_flag?(:pe_modules_next, options)).to eq(false) }
+      end
+
+      context 'true' do
+        let(:flag) { true }
+        it { expect(subject.feature_flag?('pe_modules_next', options)).to eq(true) }
+        it { expect(subject.feature_flag?(:pe_modules_next, options)).to eq(true) }
+
+        context 'as string' do
+          let(:flag) { 'true' }
+          it { expect(subject.feature_flag?('pe_modules_next', options)).to eq(true) }
+          it { expect(subject.feature_flag?(:pe_modules_next, options)).to eq(true) }
+        end
+      end
     end
   end
 
@@ -411,6 +634,28 @@ describe ClassMixedWithDSLInstallUtils do
             :include_legacy_database_defaults => false,
           )
         )
+      end
+
+      context 'with pe-modules-next' do
+        let(:options) do
+          opts.merge(
+            :answers => {
+              :feature_flags => {
+                :pe_modules_next => true
+              }
+            }
+          )
+        end
+
+        it 'adds meep_schema_version' do
+          expect(subject.setup_beaker_answers_opts(host, options)).to eq(
+            options.merge(
+              :format => :hiera,
+              :include_legacy_database_defaults => false,
+              :meep_schema_version => '2.0',
+            )
+          )
+        end
       end
 
       context 'when upgrading' do
@@ -444,8 +689,8 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
-  describe 'add_extended_gpg_key_to_hosts' do
-    let(:on_cmd) { 'curl http://apt.puppetlabs.com/DEB-GPG-KEY-puppetlabs | apt-key add -' }
+  describe 'ignore_gpg_key_warning_on_hosts' do
+    let(:on_cmd) { "echo 'APT { Get { AllowUnauthenticated \"1\"; }; };' >> /etc/apt/apt.conf" }
     let(:deb_host) do
       host = hosts.first
       host['platform'] = 'debian'
@@ -461,57 +706,57 @@ describe ClassMixedWithDSLInstallUtils do
 
       it 'does nothing on el platforms' do
         expect(subject).not_to receive(:on).with(hosts[0], on_cmd)
-        subject.add_extended_gpg_key_to_hosts(hosts, opts)
+        subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
       end
 
-      it 'installs key on debian based platforms' do
+      it 'adds in apt ignore gpg-key warning' do
         expect(subject).to receive(:on).with(hosts[1], on_cmd)
         expect(subject).to receive(:on).with(hosts[2], on_cmd)
-        subject.add_extended_gpg_key_to_hosts(hosts, opts)
+        subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
       end
     end
 
     context 'mixed pe_versions' do
       before(:each) do
         hosts[0]['platform'] = 'debian'
-        hosts[0]['pe_ver'] = '2016.2.0'
+        hosts[0]['pe_ver'] = '2016.4.0'
         hosts[1]['platform'] = 'debian'
         hosts[1]['pe_ver'] = '3.8.4'
       end
 
-      it 'adds key to required hosts' do
+      it 'adds apt gpg-key ignore to required hosts' do
         expect(subject).not_to receive(:on).with(hosts[0], on_cmd)
         expect(subject).to receive(:on).with(hosts[1], on_cmd)
-        subject.add_extended_gpg_key_to_hosts(hosts, opts)
+        subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
       end
     end
 
-    context 'PE versions earlier than 3.8.5' do
-      ['3.3.2', '3.7.3', '3.8.2'].each do |pe_ver|
-        it "Adds key on PE #{pe_ver}" do
+    context 'PE versions earlier than 3.8.7' do
+      ['3.3.2', '3.7.3', '3.8.2', '3.8.4', '3.8.5', '3.8.6'].each do |pe_ver|
+        it "Adds apt gpg-key ignore on PE #{pe_ver}" do
           deb_host['pe_ver'] = pe_ver
           expect(subject).to receive(:on).with(deb_host, on_cmd)
-          subject.add_extended_gpg_key_to_hosts(hosts, opts)
+          subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
         end
       end
     end
 
-    context 'PE versions between 2015.2.0 and 2016.1.1' do
-      ['2015.2.0', '2015.3.1', '2016.1.1'].each do |pe_ver|
-        it "Adds key on PE #{pe_ver}" do
+    context 'PE versions between 2015.2.0 and 2016.2.1' do
+      ['2015.2.0', '2015.3.1', '2016.1.2', '2016.2.1'].each do |pe_ver|
+        it "Adds apt gpg-key ignore on PE #{pe_ver}" do
           deb_host['pe_ver'] = pe_ver
           expect(subject).to receive(:on).with(deb_host, on_cmd)
-          subject.add_extended_gpg_key_to_hosts(hosts, opts)
+          subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
         end
       end
     end
 
-    ['3.8.5', '3.8.6', '2016.1.2', '2016.2.0'].each do |pe_ver|
+    ['2016.4.0', '2016.5.1', '2017.1.0'].each do |pe_ver|
       context "PE #{pe_ver}" do
         it 'does nothing' do
           deb_host['pe_ver'] = pe_ver
           expect(subject).not_to receive(:on).with(deb_host, on_cmd)
-          subject.add_extended_gpg_key_to_hosts(hosts, opts)
+          subject.ignore_gpg_key_warning_on_hosts(hosts, opts)
         end
       end
     end
@@ -650,7 +895,97 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe "#determine_install_type" do
+    let(:monolithic) { make_host('monolithic', :pe_ver => '2016.4', :roles => [ 'master', 'database', 'dashboard' ]) }
+    let(:master) { make_host('master', :pe_ver => '2016.4', :roles => [ 'master' ]) }
+    let(:puppetdb) { make_host('puppetdb', :pe_ver => '2016.4', :roles => [ 'database' ]) }
+    let(:console) { make_host('console', :pe_ver => '2016.4', :roles => [ 'dashboard' ]) }
+    let(:agent) { make_host('agent', :pe_ver => '2016.4', :roles => ['frictionless']) }
+
+    it 'identifies a monolithic install with frictionless agents' do
+      hosts = [monolithic, agent, agent, agent]
+      expect(subject.determine_install_type(hosts, {})).to eq(:simple_monolithic)
+    end
+
+    it 'identifies a monolithic install without frictionless agents' do
+      expect(subject.determine_install_type([monolithic], {})).to eq(:simple_monolithic)
+    end
+
+    it 'identifies a split install with frictionless agents' do
+      hosts = [master, puppetdb, console, agent, agent, agent]
+      expect(subject.determine_install_type(hosts, {})).to eq(:simple_split)
+    end
+
+    it 'identifies a split install without frictionless agents' do
+      hosts = [master, puppetdb, console]
+      expect(subject.determine_install_type(hosts, {})).to eq(:simple_split)
+    end
+
+    it 'identifies an install with multiple agent versions as generic' do
+      new_agent = make_host('agent', :pe_ver => '2017.2', :roles => ['frictionless'])
+      hosts = [monolithic, agent, new_agent]
+      expect(subject.determine_install_type(hosts, {})).to eq(:generic)
+    end
+
+    it 'identifies an upgrade as generic' do
+      hosts = [monolithic, agent, agent, agent]
+      expect(subject.determine_install_type(hosts, {:type => :upgrade})).to eq(:generic)
+    end
+
+    it 'identifies a legacy PE version as generic' do
+      old_monolithic = make_host('monolithic', :pe_ver => '3.8', :roles => [ 'master', 'database', 'dashboard' ])
+      old_agent = make_host('agent', :pe_ver => '3.8', :roles => ['frictionless'])
+      hosts = [old_monolithic, old_agent, old_agent, old_agent]
+      expect(subject.determine_install_type(hosts, {})).to eq(:generic)
+    end
+
+    it 'identifies a non-standard install as generic' do
+      hosts = [monolithic, master, agent, agent, agent]
+      expect(subject.determine_install_type(hosts, {})).to eq(:generic)
+    end
+  end
+
+  describe '#deploy_frictionless_to_master' do
+    let(:master) { make_host('master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
+    let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
+    let(:dispatcher) { double('dispatcher') }
+    let(:node_group) { {} }
+
+    before :each do
+      allow(subject).to receive(:on)
+
+      allow(subject).to receive(:hosts).and_return([master, agent])
+      allow(Scooter::HttpDispatchers::ConsoleDispatcher).to receive(:new).and_return(dispatcher)
+
+      allow(dispatcher).to receive(:get_node_group_by_name).and_return(node_group)
+      allow(dispatcher).to receive(:create_new_node_group_model) {|model| node_group.update(model)}
+    end
+
+    it 'adds the right pe_repo class to the Beaker Frictionless Agent group' do
+      subject.deploy_frictionless_to_master(agent)
+
+      expect(node_group['rule']).to eq(['and', ['=', 'name', 'master']])
+      expect(node_group['classes']).to include('pe_repo::platform::el_7_x86_64')
+    end
+
+    it 'only adds classes once' do
+      expect(dispatcher).to receive(:create_new_node_group_model).once
+
+      subject.deploy_frictionless_to_master(agent)
+      subject.deploy_frictionless_to_master(agent)
+
+      expect(node_group['classes']).to include('pe_repo::platform::el_7_x86_64')
+    end
+  end
+
   describe 'do_install' do
+    it 'chooses to do a simple monolithic install when appropriate' do
+      expect(subject).to receive(:simple_monolithic_install)
+      allow(subject).to receive(:determine_install_type).and_return(:simple_monolithic)
+
+      subject.do_install([])
+    end
+
     it 'can perform a simple installation' do
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
       allow( subject ).to receive( :fetch_pe ).and_return( true )
@@ -659,7 +994,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :stop_agent_on ).and_return( true )
       allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
       allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('3.0')
-      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
       allow( subject ).to receive( :puppet_agent ) do |arg|
         "puppet agent #{arg}"
       end
@@ -670,6 +1004,8 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :hosts ).and_return( hosts )
       #create answers file per-host, except windows
       expect( subject ).to receive( :create_remote_file ).with( hosts[0], /answers/, /q/ ).once
+      # copy the pe.conf
+      expect( subject ).to receive( :scp_from ).and_return(true)
       #run installer on all hosts
       expect( subject ).to receive( :on ).with( hosts[0], /puppet-enterprise-installer/ ).once
       expect( subject ).to receive( :install_msi_on ).with ( any_args ) do | host, msi_path, msi_opts, opts |
@@ -735,7 +1071,6 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject ).to_not receive( :sign_certificate_for )
       expect( subject ).to receive( :stop_agent_on ).with( hosts[0] ).once
       expect( subject ).to_not receive( :sleep_until_puppetdb_started )
-      expect( subject ).to_not receive( :wait_for_host_in_dashboard )
       expect( subject ).to_not receive( :on ).with( hosts[0], /puppet agent -t/, :acceptable_exit_codes => [0,2] )
 
       hosts.each do |host|
@@ -764,7 +1099,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :stop_agent_on ).and_return( true )
       allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
       allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('4.0')
-      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
       allow( subject ).to receive( :puppet_agent ) do |arg|
         "puppet agent #{arg}"
       end
@@ -772,15 +1106,32 @@ describe ClassMixedWithDSLInstallUtils do
         "puppet #{arg}"
       end
 
+      pa_version = 'rarified_air_9364'
+      allow( subject ).to receive( :get_puppet_agent_version ).and_return( pa_version )
+
       allow( subject ).to receive( :hosts ).and_return( hosts )
       #create answers file per-host, except windows
       expect( subject ).to receive( :create_remote_file ).with( hosts[0], /answers/, /q/ ).once
       #run installer on all hosts
       expect( subject ).to receive( :on ).with( hosts[0], /puppet-enterprise-installer/ ).once
-      expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with( hosts[1],
-                                                                                     {:puppet_agent_version=>nil, :puppet_agent_sha=>nil, :pe_ver=>hosts[1][:pe_ver], :puppet_collection=>nil} ).once
-      expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with( hosts[2],
-                                                                                     {:puppet_agent_version=>nil, :puppet_agent_sha=>nil, :pe_ver=>hosts[2][:pe_ver], :puppet_collection=>nil} ).once
+      expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with(
+        hosts[1],
+        {
+          :puppet_agent_version => pa_version,
+          :puppet_agent_sha => nil,
+          :pe_ver => hosts[1][:pe_ver],
+          :puppet_collection => nil
+        }
+      ).once
+      expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with(
+        hosts[2],
+        {
+          :puppet_agent_version => pa_version,
+          :puppet_agent_sha => nil,
+          :pe_ver => hosts[2][:pe_ver],
+          :puppet_collection => nil
+        }
+      ).once
       hosts.each do |host|
         expect( subject ).to receive( :configure_type_defaults_on ).with( host ).once
         expect( subject ).to receive( :sign_certificate_for ).with( host ).once
@@ -799,6 +1150,7 @@ describe ClassMixedWithDSLInstallUtils do
         allow( subject ).to receive( :configure_type_defaults_on ).with( host )
       end
 
+      expect( subject ).to receive( :scp_from ).and_return(true)
       subject.do_install( hosts, opts )
     end
 
@@ -812,6 +1164,9 @@ describe ClassMixedWithDSLInstallUtils do
       hosts[2][:platform] = Beaker::Platform.new('el-6-x86_64')
       hosts[2][:pe_ver]   = '3.8'
 
+      pa_version = 'rarified_air_1675'
+      allow( subject ).to receive( :get_puppet_agent_version ).and_return( pa_version )
+
       allow( subject ).to receive( :hosts ).and_return( hosts )
       allow( subject ).to receive( :options ).and_return(Beaker::Options::Presets.new.presets)
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
@@ -821,7 +1176,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :stop_agent_on ).and_return( true )
       allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
       allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('4.0')
-      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
       allow( subject ).to receive( :puppet_agent ) do |arg|
         "puppet agent #{arg}"
       end
@@ -834,8 +1188,15 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject ).to receive( :create_remote_file ).with( hosts[0], /answers/, /q/ ).once
       #run installer on all hosts
       expect( subject ).to receive( :on ).with( hosts[0], /puppet-enterprise-installer/ ).once
-      expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with( hosts[1],
-                                                                                      {:puppet_agent_version=>nil, :puppet_agent_sha=>nil, :pe_ver=>hosts[1][:pe_ver], :puppet_collection=>nil} ).once
+      expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with(
+        hosts[1],
+        {
+          :puppet_agent_version => pa_version,
+          :puppet_agent_sha => nil,
+          :pe_ver => hosts[1][:pe_ver],
+          :puppet_collection => nil
+        }
+      ).once
       expect( subject ).to receive( :on ).with( hosts[2], /puppet-enterprise-installer/ ).once
       hosts.each do |host|
         expect( subject ).to receive( :configure_type_defaults_on ).with( host ).once
@@ -855,6 +1216,7 @@ describe ClassMixedWithDSLInstallUtils do
         allow( subject ).to receive( :configure_type_defaults_on ).with( host )
       end
 
+      expect( subject ).to receive( :scp_from ).and_return(true)
       subject.do_install( hosts, opts )
     end
 
@@ -872,6 +1234,9 @@ describe ClassMixedWithDSLInstallUtils do
         opts[:HOSTS][host.name] = host
       end
 
+      pa_version = 'rarified_air_75699'
+      allow( subject ).to receive( :get_puppet_agent_version ).and_return( pa_version )
+
       allow( subject ).to receive( :hosts ).and_return( hosts )
       allow( subject ).to receive( :options ).and_return(Beaker::Options::Presets.new.presets)
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
@@ -881,7 +1246,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive( :stop_agent_on ).and_return( true )
       allow( subject ).to receive( :sleep_until_puppetdb_started ).and_return( true )
       allow( subject ).to receive( :max_version ).with(anything, '3.8').and_return('4.0')
-      allow( subject ).to receive( :wait_for_host_in_dashboard ).and_return( true )
       allow( subject ).to receive( :puppet_agent ) do |arg|
         "puppet agent #{arg}"
       end
@@ -897,7 +1261,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive(
         :install_puppet_agent_pe_promoted_repo_on
       ).with( hosts[1], {
-        :puppet_agent_version => nil,
+        :puppet_agent_version => pa_version,
         :puppet_agent_sha     => nil,
         :pe_ver               => hosts[1][:pe_ver],
         :puppet_collection    => nil
@@ -923,9 +1287,76 @@ describe ClassMixedWithDSLInstallUtils do
         allow( subject ).to receive( :configure_type_defaults_on ).with( host )
       end
 
+      expect( subject ).to receive( :scp_from ).and_return(true)
       subject.do_install( hosts, opts )
     end
 
+  end
+
+  describe 'simple_monolithic_install' do
+    let(:monolithic) { make_host('monolithic', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => [ 'master', 'database', 'dashboard' ]) }
+    let(:el_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
+    let(:deb_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'debian-7-x86_64', :roles => ['frictionless']) }
+
+    before :each do
+      allow(subject).to receive(:on)
+      allow(subject).to receive(:configure_type_defaults_on)
+      allow(subject).to receive(:prepare_hosts)
+      allow(subject).to receive(:fetch_pe)
+      allow(subject).to receive(:prepare_host_installer_options)
+      allow(subject).to receive(:generate_installer_conf_file_for)
+      allow(subject).to receive(:deploy_frictionless_to_master)
+
+      allow(subject).to receive(:installer_cmd).with(monolithic, anything()).and_return("install master")
+      allow(subject).to receive(:installer_cmd).with(el_agent, anything()).and_return("install el agent")
+      allow(subject).to receive(:installer_cmd).with(deb_agent, anything()).and_return("install deb agent")
+
+      allow(subject).to receive(:stop_agent_on)
+      allow(subject).to receive(:sign_certificate_for)
+    end
+
+    describe 'configuring frictionless installer' do
+      it "skips the master's platform" do
+        expect(subject).not_to receive(:deploy_frictionless_to_master)
+
+        subject.simple_monolithic_install(monolithic, [el_agent, el_agent, el_agent])
+      end
+
+      it "adds frictionless install classes for other platforms" do
+        expect(subject).to receive(:deploy_frictionless_to_master).with(deb_agent)
+
+        subject.simple_monolithic_install(monolithic, [el_agent, deb_agent])
+      end
+    end
+
+    it 'installs on the master then on the agents' do
+      expect(subject).to receive(:on).with(monolithic, "install master").ordered
+      expect(subject).to receive(:on).with([el_agent, el_agent], "install el agent", anything()).ordered
+
+      subject.simple_monolithic_install(monolithic, [el_agent, el_agent])
+    end
+
+    it 'installs agents in parallel if their install command is the same' do
+      expect(subject).to receive(:on).with([el_agent, el_agent], "install el agent", :run_in_parallel => true)
+      expect(subject).to receive(:on).with([deb_agent, deb_agent], "install deb agent", :run_in_parallel => true)
+
+      subject.simple_monolithic_install(monolithic, [el_agent, el_agent, deb_agent, deb_agent])
+    end
+
+    it 'signs certificates then stops agents to avoid interference with tests' do
+      agents = [el_agent, el_agent, deb_agent, deb_agent]
+      expect(subject).to receive(:sign_certificate_for).with(agents).ordered
+      expect(subject).to receive(:stop_agent_on).with([monolithic, *agents], :run_in_parallel => true).ordered
+
+      subject.simple_monolithic_install(monolithic, agents)
+    end
+
+    it 'runs agents in parallel, only one time' do
+      agents = [el_agent, el_agent, deb_agent, deb_agent]
+      expect(subject).to receive(:on).with([monolithic, *agents], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).once
+
+      subject.simple_monolithic_install(monolithic, agents)
+    end
   end
 
   describe 'do_higgs_install' do
@@ -1230,6 +1661,16 @@ describe ClassMixedWithDSLInstallUtils do
       subject.check_console_status_endpoint({})
     end
 
+    it 'add query param to curling url if version is 2016.1.1' do
+      unixhost[:pe_ver] = '2016.1.1'
+      allow(subject).to receive(:options).and_return({})
+      allow(subject).to receive(:version_is_less).and_return(false)
+      json_hash = '{ "classifier-service": { "state": "running" }, "rbac-service": { "state": "running" }, "activity-service":  { "state": "running" } }'
+      result = double(Beaker::Result, :stdout => "#{json_hash}")
+      expect(subject).to receive(:on).with( anything, /services\?level=critical/, anything).and_return(result)
+      subject.check_console_status_endpoint(unixhost)
+    end
+
     it 'yields false to repeat_fibonacci_style_for when conditions are not true' do
       allow(subject).to receive(:options).and_return({})
       allow(subject).to receive(:version_is_less).and_return(false)
@@ -1267,7 +1708,311 @@ describe ClassMixedWithDSLInstallUtils do
       expect(subject).to receive(:fail_test)
       subject.check_console_status_endpoint({})
     end
-
   end
 
+  describe '#get_puppet_agent_version' do
+
+    context 'when the puppet_agent version is set on an argument' do
+
+      it 'uses host setting over all others' do
+        pa_version = 'pants of the dance'
+        host_arg = { :puppet_agent_version => pa_version }
+        local_options = { :puppet_agent_version => 'something else' }
+        expect( subject.get_puppet_agent_version( host_arg, local_options ) ).to be === pa_version
+      end
+
+      it 'uses local options over all others (except host setting)' do
+        pa_version = 'who did it?'
+        local_options = { :puppet_agent_version => pa_version }
+        expect( subject.get_puppet_agent_version( {}, local_options ) ).to be === pa_version
+      end
+    end
+
+    context 'when the puppet_agent version has to be read dynamically' do
+
+      def test_setup(mock_values={})
+        json_hash    = mock_values[:json_hash]
+        pa_version   = mock_values[:pa_version]
+        pa_version ||= 'pa_version_' + rand(10 ** 5).to_s.rjust(5,'0') # 5 digit random number string
+        json_hash  ||= "{ \"values\": { \"aio_agent_version\": \"#{pa_version}\" }}"
+
+        allow( subject ).to receive( :master ).and_return( {} )
+        result_mock = Object.new
+        allow( result_mock ).to receive( :stdout ).and_return( json_hash )
+        allow( result_mock ).to receive( :exit_code ).and_return( 0 )
+        allow( subject ).to receive( :on ).and_return( result_mock )
+        pa_version
+      end
+
+      it 'parses and returns the command output correctly' do
+        pa_version = test_setup
+        expect( subject.get_puppet_agent_version( {} ) ).to be === pa_version
+      end
+
+      it 'saves the puppet_agent version in the local_options argument' do
+        pa_version = test_setup
+        local_options_hash = {}
+        subject.get_puppet_agent_version( {}, local_options_hash )
+        expect( local_options_hash[:puppet_agent_version] ).to be === pa_version
+      end
+
+    end
+
+    context 'failures' do
+
+      def test_setup(mock_values)
+        exit_code   = mock_values[:exit_code] || 0
+        json_hash   = mock_values[:json_hash]
+        pa_version  = 'pa_version_'
+        pa_version << rand(10 ** 5).to_s.rjust(5,'0') # 5 digit random number string
+        json_hash ||= "{ \"values\": { \"aio_agent_build\": \"#{pa_version}\" }}"
+
+        allow( subject ).to receive( :master ).and_return( {} )
+        result_mock = Object.new
+        allow( result_mock ).to receive( :stdout ).and_return( json_hash )
+        allow( result_mock ).to receive( :exit_code ).and_return( exit_code )
+        allow( subject ).to receive( :on ).and_return( result_mock )
+      end
+
+      it 'fails if "puppet facts" does not succeed' do
+        test_setup( :exit_code => 1 )
+        expect { subject.get_puppet_agent_version( {} ) }.to raise_error( ArgumentError )
+      end
+
+      it 'fails if neither fact exists' do
+        test_setup( :json_hash => "{ \"values\": {}}" )
+        expect { subject.get_puppet_agent_version( {} ) }.to raise_error( ArgumentError )
+      end
+    end
+  end
+
+  def assert_meep_conf_edit(input, output, path, &test)
+    # mock reading pe.conf
+    expect(master).to receive(:exec).with(
+      have_attributes(:command => match(%r{cat #{path}})),
+      anything
+    ).and_return(
+      double('result', :stdout => input)
+    )
+
+    # mock writing pe.conf and check for parameters
+    expect(subject).to receive(:create_remote_file).with(
+      master,
+      path,
+      output
+    )
+
+    yield
+  end
+
+  describe 'configure_puppet_agent_service' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.configure_puppet_agent_service }.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    context 'master prior to 2017.1.0' do
+      let(:pe_version) { '2016.5.1' }
+
+      it 'raises an exception about version' do
+        expect { subject.configure_puppet_agent_service({}) }.to(
+          raise_error(StandardError, /Can only manage.*2017.1.0; tried.* 2016.5.1/)
+        )
+      end
+    end
+
+    context '2017.1.0 master' do
+      let(:pe_conf_path) { '/etc/puppetlabs/enterprise/conf.d/pe.conf' }
+      let(:pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+        EOF
+      end
+      let(:gold_pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+"pe_infrastructure::agent::puppet_service_managed": true
+"pe_infrastructure::agent::puppet_service_ensure": "stopped"
+"pe_infrastructure::agent::puppet_service_enabled": false
+        EOF
+      end
+
+      it "modifies the agent puppet service settings in pe.conf" do
+        # mock hitting the console
+        dispatcher = double('dispatcher').as_null_object
+        expect(subject).to receive(:get_console_dispatcher_for_beaker_pe)
+          .and_return(dispatcher)
+
+        assert_meep_conf_edit(pe_conf, gold_pe_conf, pe_conf_path) do
+          subject.configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
+        end
+      end
+    end
+  end
+
+  describe 'update_pe_conf' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.update_pe_conf}.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    context '2017.1.0 master' do
+      let(:pe_conf_path) { '/etc/puppetlabs/enterprise/conf.d/pe.conf' }
+      let(:pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+"namespace::removed": "bye"
+"namespace::changed": "old"
+        EOF
+      end
+      let(:gold_pe_conf) do
+        <<-EOF
+"node_roles": {
+  "pe_role::monolithic::primary_master": ["#{master.name}"],
+}
+
+"namespace::changed": "new"
+"namespace::add": "hi"
+"namespace::add2": "other"
+        EOF
+      end
+
+      it "adds, changes and removes hocon parameters from pe.conf" do
+        assert_meep_conf_edit(pe_conf, gold_pe_conf, pe_conf_path) do
+          subject.update_pe_conf(
+            {
+              "namespace::add"     => "hi",
+              "namespace::changed" => "new",
+              "namespace::removed" => nil,
+              "namespace::add2"     => "other",
+            }
+          )
+        end
+      end
+    end
+  end
+
+  describe 'create_or_update_node_conf' do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+    let(:node) { hosts[1] }
+    let(:node_conf_path) { "/etc/puppetlabs/enterprise/conf.d/nodes/vm2.conf" }
+    let(:node_conf) do
+      <<-EOF
+"namespace::removed": "bye"
+"namespace::changed": "old"
+      EOF
+    end
+    let(:updated_node_conf) do
+      <<-EOF
+
+"namespace::changed": "new"
+"namespace::add": "hi"
+      EOF
+    end
+    let(:created_node_conf) do
+      <<-EOF
+{
+  "namespace::one": "red"
+  "namespace::two": "blue"
+}
+      EOF
+    end
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+    end
+
+    it 'requires parameters' do
+      expect { subject.update_pe_conf}.to raise_error(ArgumentError, /wrong number/)
+    end
+
+    it 'creates a node file that did not exist' do
+      expect(master).to receive(:file_exist?).with(node_conf_path).and_return(false)
+      expect(master).to receive(:file_exist?).with("/etc/puppetlabs/enterprise/conf.d/nodes").and_return(false)
+      expect(subject).to receive(:create_remote_file).with(master, node_conf_path, %Q|{\n}\n|)
+
+      assert_meep_conf_edit(%Q|{\n}\n|, created_node_conf, node_conf_path) do
+        subject.create_or_update_node_conf(
+          node,
+          {
+            "namespace::one" => "red",
+            "namespace::two" => "blue",
+          },
+        )
+      end
+    end
+
+    it 'updates a node file that did exist' do
+      assert_meep_conf_edit(node_conf, updated_node_conf, node_conf_path) do
+        subject.create_or_update_node_conf(
+          node,
+          {
+            "namespace::add"     => "hi",
+            "namespace::changed" => "new",
+            "namespace::removed" => nil,
+          },
+        )
+      end
+    end
+  end
+
+  describe "get_unwrapped_pe_conf_value" do
+    let(:pe_version) { '2017.1.0' }
+    let(:master) { hosts[0] }
+    let(:pe_conf_path) { "/etc/puppetlabs/enterprise/conf.d/pe.conf" }
+    let(:pe_conf) do
+      <<-EOF
+"namespace::bool": true
+"namespace::string": "stringy"
+"namespace::array": ["of", "things"]
+"namespace::hash": {
+  "foo": "a"
+  "bar": "b"
+}
+      EOF
+    end
+
+    before(:each) do
+      hosts.each { |h| h[:pe_ver] = pe_version }
+      allow( subject ).to receive( :hosts ).and_return( hosts )
+      expect(master).to receive(:exec).with(
+        have_attributes(:command => match(%r{cat #{pe_conf_path}})),
+        anything
+      ).and_return(
+        double('result', :stdout => pe_conf)
+      )
+    end
+
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::bool")).to eq(true) }
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::string")).to eq("stringy") }
+    it { expect(subject.get_unwrapped_pe_conf_value("namespace::array")).to eq(["of","things"]) }
+    it do
+      expect(subject.get_unwrapped_pe_conf_value("namespace::hash")).to eq({
+        'foo' => 'a',
+        'bar' => 'b',
+      })
+    end
+  end
 end

@@ -1,9 +1,10 @@
 require 'spec_helper'
-require 'beaker/host'
+
 class ClassPEClientToolsMixedWithPatterns
   include Beaker::DSL::InstallUtils::PEClientTools
   include Beaker::DSL::Patterns
 end
+
 describe ClassPEClientToolsMixedWithPatterns do
   describe "#install_pe_client_tools_on" do
     let(:hosts) do

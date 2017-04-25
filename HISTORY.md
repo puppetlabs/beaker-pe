@@ -1,6 +1,17 @@
-# default - History
+# worker - History
 ## Tags
-* [LATEST - 22 Nov, 2016 (4b812f78)](#LATEST)
+* [LATEST - 6 Apr, 2017 (197a55dd)](#LATEST)
+* [1.12.1 - 29 Mar, 2017 (fe8bbc82)](#1.12.1)
+* [1.12.0 - 23 Mar, 2017 (0784adc6)](#1.12.0)
+* [1.11.0 - 23 Mar, 2017 (6c3b0067)](#1.11.0)
+* [1.10.0 - 20 Mar, 2017 (22e22ca8)](#1.10.0)
+* [1.9.1 - 22 Feb, 2017 (3b0bd457)](#1.9.1)
+* [1.9.0 - 7 Feb, 2017 (efae323b)](#1.9.0)
+* [1.8.2 - 6 Jan, 2017 (625c17e3)](#1.8.2)
+* [1.8.1 - 30 Dec, 2016 (3cefad28)](#1.8.1)
+* [1.8.0 - 30 Dec, 2016 (5a37fef7)](#1.8.0)
+* [1.7.0 - 20 Dec, 2016 (99e6bbde)](#1.7.0)
+* [1.6.1 - 22 Nov, 2016 (52e30609)](#1.6.1)
 * [1.6.0 - 16 Nov, 2016 (0da1b64c)](#1.6.0)
 * [1.5.0 - 7 Nov, 2016 (24d78992)](#1.5.0)
 * [1.4.0 - 11 Oct, 2016 (6becdbb2)](#1.4.0)
@@ -25,7 +36,565 @@
 * [0.1.0 - 29 Feb, 2016 (4fc88d8c)](#0.1.0)
 
 ## Details
-### <a name = "LATEST">LATEST - 22 Nov, 2016 (4b812f78)
+### <a name = "LATEST">LATEST - 6 Apr, 2017 (197a55dd)
+
+* (GEM) update beaker-pe version to 1.13.0 (197a55dd)
+
+* (BKR-806) Add tests for frictionless repo setup (5e723bb2)
+
+* (BKR-806) Only add pe_repo classes once (a718fbb9)
+
+
+```
+(BKR-806) Only add pe_repo classes once
+
+Previously, if installing multiple agents with the same platform, the
+work to add the appropriate pe_repo class to the master would be
+performed once for each agent. Because that requires running `puppet
+agent -t` on the master, it can add a significant amount of unnecessary
+overhead to the install process when installing several agents.
+
+We now check whether the class has already been included in the Beaker
+Frictionless Agent group and skip running puppet on the master if it
+has.
+```
+### <a name = "1.12.1">1.12.1 - 29 Mar, 2017 (fe8bbc82)
+
+* (HISTORY) update beaker-pe history for gem release 1.12.1 (fe8bbc82)
+
+* (GEM) update beaker-pe version to 1.12.1 (95b0e94f)
+
+* Merge pull request #65 from nicklewis/BKR-1085-sign-certs-before-stopping-agent (e1b6d137)
+
+
+```
+Merge pull request #65 from nicklewis/BKR-1085-sign-certs-before-stopping-agent
+
+(BKR-1085) Sign certs *before* stopping agent service
+```
+* (BKR-1085) Sign certs *before* stopping agent service (3b5208eb)
+
+
+```
+(BKR-1085) Sign certs *before* stopping agent service
+
+Previously, the simple_monolithic install method was installing agents,
+stopping the agent service and then attempting to sign certificates.
+This was failing sporadically because the agent service needs to run
+enough to submit a certificate request before being stopped. This was
+being handled properly in the generic install method, but the order of
+operations was swapped in the monolithic install method.
+```
+### <a name = "1.12.0">1.12.0 - 23 Mar, 2017 (0784adc6)
+
+* (HISTORY) update beaker-pe history for gem release 1.12.0 (0784adc6)
+
+* (GEM) update beaker-pe version to 1.12.0 (dd68cfa4)
+
+* Merge pull request #57 from nicklewis/improved-monolithic-install (07aa286e)
+
+
+```
+Merge pull request #57 from nicklewis/improved-monolithic-install
+
+(BKR-1058) Implement a simpler monolithic install method
+```
+* (BKR-1058) Implement a simpler monolithic install method (691a101e)
+
+
+```
+(BKR-1058) Implement a simpler monolithic install method
+
+Currently, the `do_install` method is a mega-method responsible for
+installing and upgrading every version, layout, and platform of PE. It
+knows how to handle masterless installs, legacy agent installs, and
+extremely old versions of PE. Because of that legacy, it has some
+inefficiencies and is inflexible.
+
+Since the most common case by far is a simple monolithic or split PE
+install with a set of frictionless agents, we can dramatically simplify
+and therefore speed up the basic case. This commit implements a
+determine_install_type method that will detect whether the task being
+asked of it is one of those simple cases. The `do_install` method now
+branches based on the type of install, calling
+`simple_monolithic_install` for a basic monolithic + agents install, or
+`generic_install` for everything else. Simple split installs are
+currently detected, but not handled specially (they still fall back to
+the generic install).
+
+Doing away with some of the legacy concerns allows this method to be
+much simpler and more efficient. In particular, because the method has a
+defined task (mono master + agents, rather than a generic list of
+hosts), it can be optimized around that task. This is accomplished now
+by first installing the master, and then installing all the agents in
+parallel. This method also removes an extra agent run that hasn't been
+necessary since PE 3.3.
+
+For a monolithic master with four frictionless agents, this new method
+takes ~6 min 30 sec, compared to ~11 minutes before.
+```
+### <a name = "1.11.0">1.11.0 - 23 Mar, 2017 (6c3b0067)
+
+* (HISTORY) update beaker-pe history for gem release 1.11.0 (6c3b0067)
+
+* (GEM) update beaker-pe version to 1.11.0 (bce6add6)
+
+* Merge pull request #63 from shaigy/PE-19888-add-workaround-for-console-status-check-error-in-2016.1.1 (635224a5)
+
+
+```
+Merge pull request #63 from shaigy/PE-19888-add-workaround-for-console-status-check-error-in-2016.1.1
+
+PE-19888 Add workaround for 2016.1.1 console status check error
+```
+* PE-19888 Add workaround for 2016.1.1 console service status check error (6cd41e45)
+
+
+```
+PE-19888 Add workaround for 2016.1.1 console service status check error
+
+During installation, a classifier-service check is done in beaker-pe
+to make sure console service is up and running. The classifier status
+service at the default detail level is broken in 2016.1.1 (PE-14857)
+and returns an error and state "unknown". The workaround is to query
+the classifier-service at 'critical' level and check for the console
+service status.
+```
+### <a name = "1.10.0">1.10.0 - 20 Mar, 2017 (22e22ca8)
+
+* (HISTORY) update beaker-pe history for gem release 1.10.0 (22e22ca8)
+
+* (GEM) update beaker-pe version to 1.10.0 (a796b850)
+
+* Merge pull request #59 from jpartlow/pe-modules-next (b130ad2f)
+
+
+```
+Merge pull request #59 from jpartlow/pe-modules-next
+
+(PE-19049)  Add a meep classification feature flag
+```
+* Merge branch 'issue/flanders/pe-19049-add-meep-classification-feature-flag' into pe-modules-next (f9b3ecd5)
+
+
+```
+Merge branch 'issue/flanders/pe-19049-add-meep-classification-feature-flag' into pe-modules-next
+
+* issue/flanders/pe-19049-add-meep-classification-feature-flag:
+  (PE-19831) Remove pe_repo classes from meep classification
+  (PE-19438) Mock `scp_from` for `do_install`
+  (PE-19438) Move pe.conf setup into descriptive function
+  (PE-19438) Stop passing -c to upgrades from MEEP
+  (PE-19049) Remove get_console_dispatcher_for_beaker_pe specs
+  (PE-19049) use_meep_for_classification for configure_puppet_agent_service
+  (PE-19049) Add helper method to read a hocon key from pe.conf
+  (PE-19049) Add method to create or update a meep node.conf file
+  (PE-19049) Can remove parameters from pe.conf
+  (PE-19049,PE-11353) Ensure puppet service is stopped in 2017.1+ builds
+  (maint) Use a Beaker::Host instance when mocking hosts
+  (PE-19049) Modify how we obtain console dispatcher for frictionless
+  (maint) Require beaker directly in spec_helper
+  (PE-19049,PE-18718,PE-18799) Provide a test method for meep classification
+  (maint) Remove unused variables
+```
+* (PE-19831) Remove pe_repo classes from meep classification (b2b3d9df)
+
+
+```
+(PE-19831) Remove pe_repo classes from meep classification
+
+This commit stops beaker from setting up additional pe_repo platform
+classes on the master node group when using meep for classification as
+this is handled in pe.conf with the agent_platform array with an array
+of platform tags instead.
+```
+* (PE-19049) Remove get_console_dispatcher_for_beaker_pe specs (e3515a02)
+
+
+```
+(PE-19049) Remove get_console_dispatcher_for_beaker_pe specs
+
+Because scooter can in fact be in the bundle based on the GEM_SOURCE
+setting, these specs can break, and it is not worth the effort reworking
+the tests to be conditional based on presence or absence of the scooter
+gem. RE-8616 should make the scooter gem public and then we don't need
+to dance around it like this.
+```
+* (PE-19438) Mock `scp_from` for `do_install` (1353f7bf)
+
+
+```
+(PE-19438) Mock `scp_from` for `do_install`
+
+The new functionality in `do_install` to copy the `conf.d` folder
+```
+* (PE-19438) Move pe.conf setup into descriptive function (80b78e04)
+
+
+```
+(PE-19438) Move pe.conf setup into descriptive function
+
+The `do_install` method was getting a bit cluttered with too many
+levels of logic, so I've moved the pe.conf setup steps out
+into their own method, `setup_pe_conf`
+```
+* Merge pull request #60 from kevpl/docs_pr_template2 (f22ac7fb)
+
+
+```
+Merge pull request #60 from kevpl/docs_pr_template2
+
+(MAINT) add pull request template
+```
+* (MAINT) add pull request template (f730e767)
+
+
+```
+(MAINT) add pull request template
+
+adds a template that will make understanding
+who to ping to get your PR reviewed clearer.
+[skip ci]
+```
+* (PE-19438) Stop passing -c to upgrades from MEEP (2af29a43)
+
+
+```
+(PE-19438) Stop passing -c to upgrades from MEEP
+
+Prior to this commit we were essentially always passing in a config
+to the installer during upgrades because we typically provide some
+sort of custom answers for many tests. This meant that we were not
+really testing upgrades without a config file being passed in.
+This commit updates the beaker to not pass in a config/`-c` option
+on upgrades from a MEEP install. In order to pass in the custom answers,
+I have instead made use of the `update_pe_conf` method to inject the
+answers.
+```
+* (PE-19049) use_meep_for_classification for configure_puppet_agent_service (570694db)
+
+
+```
+(PE-19049) use_meep_for_classification for configure_puppet_agent_service
+
+This commit updates the condition on performing the
+`configure_puppet_agent_service` to be gated with
+`use_meep_for_classification` so that it will automatically be set to
+whatever arbitrary version we activate MEEP on.
+```
+* (PE-19049) Add helper method to read a hocon key from pe.conf (02c0b356)
+
+* (PE-19049) Add method to create or update a meep node.conf file (bb4094ae)
+
+
+```
+(PE-19049) Add method to create or update a meep node.conf file
+
+This is necessary if we need to adjust parameters for a specific node
+rather than for all infrastructure via pe.conf.
+```
+* (PE-19049) Can remove parameters from pe.conf (d4bab316)
+
+
+```
+(PE-19049) Can remove parameters from pe.conf
+
+...using the update_pe_conf function.  Since a null isn't meaningful
+for a hocon lookup parameter in pe.conf (or at least, I can't think of
+why it would be, at the moment), a nil can be used to remove a parameter
+that we want to clean up from the file. It's possible I am overlooking
+something tricky about nil, undef in hiera/lookup...it might be
+applicable to a nodes.conf file where we wanted to clear a parameter on
+a specific node that had been set in pe.conf, but this function only
+applies to pe.conf, so I think this is acceptable for now.
+```
+* (maint) Use a Beaker::Host instance when mocking hosts (7154c008)
+
+
+```
+(maint) Use a Beaker::Host instance when mocking hosts
+
+The mock hosts being generated for tests where failing when :exec was
+called, despite the allow() in the helpers.rb make_host() function.
+Using a Beaker::Host resolved this.
+```
+* (PE-19049,PE-11353) Ensure puppet service is stopped in 2017.1+ builds (ed5d1499)
+
+
+```
+(PE-19049,PE-11353) Ensure puppet service is stopped in 2017.1+ builds
+
+We began managing the puppet service in 2017.1.0 and need to ensure it
+is stopped and disabled after installation, otherwise each subsequent
+puppet agent run will restart the agent service, causing potential havoc
+in smoke tests or other setup steps.
+```
+* (PE-19049) Modify how we obtain console dispatcher for frictionless (858e63a9)
+
+
+```
+(PE-19049) Modify how we obtain console dispatcher for frictionless
+
+platform configuration of the master node. Expect to use the
+beaker-pe-large-environments::classification#get_dispatcher()
+method, which will only be present during a pe_acceptance_tests run,
+when beaker-pe-large-environments is part of the gem bundle.
+```
+* (maint) Require beaker directly in spec_helper (1dbf8198)
+
+
+```
+(maint) Require beaker directly in spec_helper
+
+The individual specs were already requiring beaker. This change just
+centralizes that into the spec_helper, and removes the
+beaker_test_helper now that we are using Beaker 3.
+```
+* (PE-19049,PE-18718,PE-18799) Provide a test method for meep classification (6b9c6184)
+
+
+```
+(PE-19049,PE-18718,PE-18799) Provide a test method for meep classification
+
+so we can adjust tests and setup steps that need to work either with old
+pe node groups, or with meep.
+
+Ultimately the test is just based on version boundary. But while we are
+validating meep classification, we need to be able to toggle around a
+temporary feature flag: the pe_infrastructure::use_meep_for_classification
+parameter.
+
+The function checks to see if this has been passed into
+beaker via the hosts file answers hash. These are answers which
+beaker-answers would include in the pe.conf it generates.
+
+It can also be set from an ENV['PE_USE_MEEP_FOR_CLASSIFICATION']
+variable. This will make it easier to setup temporary ci jobs.
+
+The answer file setting will take precedence over the environment
+variable.
+```
+* (maint) Remove unused variables (7dce71cd)
+
+
+```
+(maint) Remove unused variables
+
+The version variable is not used in the fetch_pe_on_windows method (and
+hopefully wasn't producing a useful side effect...)
+
+The removed snapshot and box keys in HOST_DEFAULTS were being
+overwritten by later keys in the same hash definition and were producing
+warnings...
+```
+### <a name = "1.9.1">1.9.1 - 22 Feb, 2017 (3b0bd457)
+
+* (HISTORY) update beaker-pe history for gem release 1.9.1 (3b0bd457)
+
+* (GEM) update beaker-pe version to 1.9.1 (e2c53400)
+
+* Merge pull request #58 from kevpl/maint_stop_waiting_for_host (2a3fd63e)
+
+
+```
+Merge pull request #58 from kevpl/maint_stop_waiting_for_host
+
+(MAINT) remove wait_for_host_in_dashboard call
+```
+* (MAINT) remove wait_for_host_in_dashboard call (f6d3ee4a)
+
+### <a name = "1.9.0">1.9.0 - 7 Feb, 2017 (efae323b)
+
+* (HISTORY) update beaker-pe history for gem release 1.9.0 (efae323b)
+
+* (GEM) update beaker-pe version to 1.9.0 (d5c96d6b)
+
+* (PE-19169) Add pe modules next flag (#55) (3ff8a996)
+
+
+```
+(PE-19169) Add pe modules next flag (#55)
+
+* (PE-19169,PE-18516) Remove version specific upgrade hack
+
+This had been added to allow upgrade testing in flanders with meep for
+classification prior to our having completed an upgrade workflow in the
+installer.
+
+Now that meep is being worked on in the pe-modules-next package behind a
+feature-flag, this gate is counter-productive, particularly for Flanders
+upgrade testing because it masks the common case of upgrading without
+specifying a pe.conf.
+
+* (PE-19169) Register flag for pe-modules-next if present in ENV
+
+Major PE modules development work is being done in a separate
+pe-modules-next package. The installer shim decides which pe-modules
+package to install based on a pe.conf flag. This patch allows Jenkins CI
+to trigger this by picking up ENV['PE_MODULES_NEXT'] and ensure that the
+flag is set in the opts[:answers] which will then be transferred to
+pe.conf by beaker-answers, and then picked up by the installer shim
+during installation.
+
+* (PE-19169) Ensure beaker-answers generates meep 2.0 schema
+
+...if we are installing with the pe_modules_next flag.
+
+The pe-modules-next is meep classification at the moment and needs a 2.0
+pe.conf generated.
+
+* (PE-19169) Extract a FeatureFlags class
+
+to make it easier to test. Flags can be set in the :answers Hash or
+picked up from environment variables. In the later case, we need to be
+able to preserver them in the :answers hash, if not already present, so
+that BeakerAnswers ensures that they are set in the generated pe.conf
+file.
+```
+* Merge pull request #54 from branan/bkr-937-aix-7.2 (4e381151)
+
+
+```
+Merge pull request #54 from branan/bkr-937-aix-7.2
+
+(BKR-937) Add support for installing AIX 7 agent on 7.2
+```
+* (maint) login_with_puppet_access_on should respect --lifetime flag (with spec tests) (#52) (c17a8daf)
+
+
+```
+(maint) login_with_puppet_access_on should respect --lifetime flag (with spec tests) (#52)
+
+* (maint) fix puppet access helper to respect lifetime argument
+
+* (maint) Add spec tests for login_with_puppet_access_on
+```
+* (BKR-937) Add support for installing AIX 7 agent on 7.2 (9aada073)
+
+
+```
+(BKR-937) Add support for installing AIX 7 agent on 7.2
+
+To avoid unnecessarily expanding our build times, our initial support
+for AIX 7.2 is through the existing 7.1 package. This will be replaced
+with a single unified AIX build in the Agent 2.0 timeframe, but for now
+we need to add a little bit of special-case logic to handle 7.2 with
+existing packages.
+```
+### <a name = "1.8.2">1.8.2 - 6 Jan, 2017 (625c17e3)
+
+* (HISTORY) update beaker-pe history for gem release 1.8.2 (625c17e3)
+
+* (GEM) update beaker-pe version to 1.8.2 (93ef8841)
+
+* PE-19086 Change extend gpg key to ignore gpg key warnings (#47) (45d907e6)
+
+
+```
+PE-19086 Change extend gpg key to ignore gpg key warnings (#47)
+
+The extended GPG-key for PE 2015.2 -> 2016.1.2 has expired.
+Rather then continue to update it every few months, lets just
+enable the older versions of PE that are installed on debian
+systems to ignore gpg-key warnings.
+We will still have testing coverage of the gpg-key on debian
+systems via fresh installs of PE and testing upgrades from
+PE 2016.2.0 and newer.
+```
+### <a name = "1.8.1">1.8.1 - 30 Dec, 2016 (3cefad28)
+
+* (HISTORY) update beaker-pe history for gem release 1.8.1 (3cefad28)
+
+* (GEM) update beaker-pe version to 1.8.1 (7a9c2c4a)
+
+* (BKR-831) Remove aio_agent_build as version source (#46) (2267d3a2)
+
+
+```
+(BKR-831) Remove aio_agent_build as version source (#46)
+
+This commit removes the `aio_agent_build` fact as a data source for
+the `get_puppet_agent_version`. If the version is not specified, then
+then only the `aio_agent_version` value is used as a fail over.
+```
+### <a name = "1.8.0">1.8.0 - 30 Dec, 2016 (5a37fef7)
+
+* (HISTORY) update beaker-pe history for gem release 1.8.0 (5a37fef7)
+
+* (GEM) update beaker-pe version to 1.8.0 (75d22036)
+
+* (PE-18728) Skip frictionless install if agent is affected by powershell 2 bug (#45) (48b3b788)
+
+
+```
+(PE-18728) Skip frictionless install if agent is affected by powershell 2 bug (#45)
+
+We introduced frictionless installs for Windows agents in PE 2016.4.0.
+For upgrade scenarios where we are testing frictionless upgrades, to
+install we need to use the old MSI method if we are installing less then
+PE 2016.4.0.
+However, we have discovered that frictionless installs of windows2008r2
+will fail on PE 2016.4.0 and PE 2016.4.2.
+This PR adds in logic to install with the non-frictionless method if the
+agent is windows2008r2 and version is less then PE 2016.4.3.
+```
+* (MAINT) add install PE doc (#41) (2e748b9c)
+
+
+```
+(MAINT) add install PE doc (#41)
+
+[skip ci]
+```
+### <a name = "1.7.0">1.7.0 - 20 Dec, 2016 (99e6bbde)
+
+* (HISTORY) update beaker-pe history for gem release 1.7.0 (99e6bbde)
+
+* (GEM) update beaker-pe version to 1.7.0 (80c18a2b)
+
+* Merge pull request #44 from kevpl/maint_version_fix (a1a01605)
+
+
+```
+Merge pull request #44 from kevpl/maint_version_fix
+
+(MAINT) fix broken version number
+```
+* (MAINT) fix broken version number (46340fb7)
+
+
+```
+(MAINT) fix broken version number
+
+[skip ci]
+```
+* Merge pull request #19 from kevpl/bkr831_install_windows (415d3f3c)
+
+
+```
+Merge pull request #19 from kevpl/bkr831_install_windows
+
+(BKR-831) added dynamic puppet-agent version read from master
+```
+* Merge pull request #42 from kevpl/maint_fix_specs (e185d0da)
+
+
+```
+Merge pull request #42 from kevpl/maint_fix_specs
+
+(MAINT) fix spec testing
+```
+* (MAINT) fix spec testing (9dc8b8d7)
+
+* (BKR-831) add fallback to aio_agent_version (d42ef8ef)
+
+* (BKR-831) cleaned up host preparation for installs (f544d6aa)
+
+* (BKR-831) added dynamic puppet-agent version read from master (76d2f9a7)
+
+### <a name = "1.6.1">1.6.1 - 22 Nov, 2016 (52e30609)
+
+* (HISTORY) update beaker-pe history for gem release 1.6.1 (52e30609)
 
 * (GEM) update beaker-pe version to 1.6.1 (4b812f78)
 

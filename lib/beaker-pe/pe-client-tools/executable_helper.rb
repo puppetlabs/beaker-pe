@@ -75,7 +75,9 @@ module Beaker
 
             user = credentialed_dispatcher.credentials.login
             password = credentialed_dispatcher.credentials.password
-            puppet_access_on(host, 'login', {:stdin => "#{user}\n#{password}\n"})
+            args = ['login']
+            args.push "--lifetime #{lifetime}" if lifetime
+            puppet_access_on(host, *args, {:stdin => "#{user}\n#{password}\n"})
           else
 
             # this is a hack
