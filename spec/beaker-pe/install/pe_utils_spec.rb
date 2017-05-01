@@ -1341,6 +1341,11 @@ describe ClassMixedWithDSLInstallUtils do
 
       subject.simple_monolithic_install(monolithic, agents)
     end
+
+    it "calls prepare_hosts on all hosts instead of just master" do
+      expect(subject).to receive(:prepare_hosts).with([monolithic] + [el_agent, el_agent, el_agent], {})
+      subject.simple_monolithic_install(monolithic, [el_agent, el_agent, el_agent])
+    end
   end
 
   describe 'do_higgs_install' do

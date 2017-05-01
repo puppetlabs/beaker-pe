@@ -450,8 +450,8 @@ module Beaker
           all_hosts = [master, *agents]
           configure_type_defaults_on(all_hosts)
 
-          # Set PE distribution on the master, create working dir
-          prepare_hosts([master], opts)
+          # Set PE distribution on the agents, creates working directories
+          prepare_hosts(all_hosts, opts)
           fetch_pe([master], opts)
           prepare_host_installer_options(master)
           generate_installer_conf_file_for(master, [master], opts)
