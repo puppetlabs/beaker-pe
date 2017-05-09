@@ -535,12 +535,18 @@ module Beaker
                 :puppet_agent_version => get_puppet_agent_version(host, opts),
                 :puppet_agent_sha => host[:puppet_agent_sha] || opts[:puppet_agent_sha],
                 :pe_ver => host[:pe_ver] || opts[:pe_ver],
-                :puppet_collection => host[:puppet_collection] || opts[:puppet_collection]
+                :puppet_collection => host[:puppet_collection] || opts[:puppet_collection], 
+                :pe_promoted_builds_url => host[:pe_promoted_builds_url] || opts[:pe_promoted_builds_url]
               })
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = [0, 1]
               acceptable_exit_codes << 2 if opts[:type] == :upgrade
-              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+              if masterless
+                configure_type_defaults_on(host)
+                on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
+              else
+                setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
+              end
             #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
             elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')) || install_via_msi?(host))
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
