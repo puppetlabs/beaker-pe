@@ -547,7 +547,8 @@ module Beaker
               else
                 setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
               end
-            elsif host['platform'] =~ /windows/
+            #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
+            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')) || install_via_msi?(host))
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
               msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
               install_msi_on(host, msi_path, {}, opts)
