@@ -1143,19 +1143,21 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with(
         hosts[1],
         {
-          :puppet_agent_version => pa_version,
-          :puppet_agent_sha => nil,
-          :pe_ver => hosts[1][:pe_ver],
-          :puppet_collection => nil
+          :puppet_agent_version   => pa_version,
+          :puppet_agent_sha       => nil,
+          :pe_ver                 => hosts[1][:pe_ver],
+          :puppet_collection      => nil,
+          :pe_promoted_builds_url => nil
         }
       ).once
       expect( subject ).to receive( :install_puppet_agent_pe_promoted_repo_on ).with(
         hosts[2],
         {
-          :puppet_agent_version => pa_version,
-          :puppet_agent_sha => nil,
-          :pe_ver => hosts[2][:pe_ver],
-          :puppet_collection => nil
+          :puppet_agent_version   => pa_version,
+          :puppet_agent_sha       => nil,
+          :pe_ver                 => hosts[2][:pe_ver],
+          :puppet_collection      => nil,
+          :pe_promoted_builds_url => nil
         }
       ).once
       hosts.each do |host|
@@ -1220,7 +1222,8 @@ describe ClassMixedWithDSLInstallUtils do
           :puppet_agent_version => pa_version,
           :puppet_agent_sha => nil,
           :pe_ver => hosts[1][:pe_ver],
-          :puppet_collection => nil
+          :puppet_collection => nil,
+          :pe_promoted_builds_url => nil
         }
       ).once
       expect( subject ).to receive( :on ).with( hosts[2], /puppet-enterprise-installer/ ).once
@@ -1287,10 +1290,11 @@ describe ClassMixedWithDSLInstallUtils do
       allow( subject ).to receive(
         :install_puppet_agent_pe_promoted_repo_on
       ).with( hosts[1], {
-        :puppet_agent_version => pa_version,
-        :puppet_agent_sha     => nil,
-        :pe_ver               => hosts[1][:pe_ver],
-        :puppet_collection    => nil
+        :puppet_agent_version   => pa_version,
+        :puppet_agent_sha       => nil,
+        :pe_ver                 => hosts[1][:pe_ver],
+        :puppet_collection      => nil,
+        :pe_promoted_builds_url => nil
       } )
       # expect( subject ).to receive( :on ).with( hosts[2], /puppet-enterprise-installer/ ).once
       hosts.each do |host|
