@@ -483,7 +483,7 @@ module Beaker
           end
 
           step "Run puppet to setup mcollective and pxp-agent" do
-            on all_hosts, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
+            run_puppet_on_non_infrastructure_nodes(all_hosts)
 
             #Workaround for windows frictionless install, see BKR-943 for the reason
             agents.select {|agent| agent['platform'] =~ /windows/}.each do |agent|
@@ -769,6 +769,14 @@ module Beaker
           (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) ||
             (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99'))) ||
             (host['platform'] =~ /windows-2008r2/ && (!version_is_less(host['pe_ver'], '2016.4.99') && version_is_less(host['pe_ver'], '2016.5.99') && !version_is_less(host['pe_ver'], '3.99')))
+        end
+
+        # Runs puppet on all nodes, unless they have the roles: master,database,console/dashboard
+        # @param [Array<Host>] hosts The sorted hosts to install or upgrade PE on
+        def run_puppet_on_non_infrastructure_nodes(all_hosts)
+          pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'dashboard', 'database']}, all_hosts)
+          non_infrastructure = all_hosts.reject{|host| pe_infrastructure.include? host}
+          on non_infrastructure, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
         end
 
         # True if version is greater than or equal to MEEP_CLASSIFICATION_VERSION

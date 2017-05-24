@@ -254,6 +254,27 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'run_puppet_on_non_infrastructure_nodes' do
+    let(:monolithic) { make_host('monolithic', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => [ 'master', 'database', 'dashboard' ]) }
+    let(:el_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
+    let(:deb_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'debian-7-x86_64', :roles => ['frictionless']) }
+    let(:master) { make_host('master', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => [ 'master']) }
+    let(:database) { make_host('database', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => [ 'database']) }
+    let(:dashboard) { make_host('dashboard', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => [ 'dashboard']) }
+    it 'runs puppet on non-infra nodes with a monolithic master' do
+      expect(subject).to receive(:on).with([el_agent, deb_agent], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).once
+      expect(subject).to receive(:on).with([monolithic], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).never
+      subject.run_puppet_on_non_infrastructure_nodes([monolithic, el_agent, deb_agent])
+    end
+    it 'runs puppet on non-infra nodes with a split topology' do
+      expect(subject).to receive(:on).with([el_agent, deb_agent], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).once
+      expect(subject).to receive(:on).with([master], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).never
+      expect(subject).to receive(:on).with([database], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).never
+      expect(subject).to receive(:on).with([dashboard], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).never
+      subject.run_puppet_on_non_infrastructure_nodes([master, database, dashboard, el_agent, deb_agent])
+    end
+  end
+
   describe 'install_via_msi?' do
     it 'returns true if pe_version is before PE 2016.4.0' do
       the_host = winhost.dup
@@ -1347,13 +1368,6 @@ describe ClassMixedWithDSLInstallUtils do
       agents = [el_agent, el_agent, deb_agent, deb_agent]
       expect(subject).to receive(:sign_certificate_for).with(agents).ordered
       expect(subject).to receive(:stop_agent_on).with([monolithic, *agents], :run_in_parallel => true).ordered
-
-      subject.simple_monolithic_install(monolithic, agents)
-    end
-
-    it 'runs agents in parallel, only one time' do
-      agents = [el_agent, el_agent, deb_agent, deb_agent]
-      expect(subject).to receive(:on).with([monolithic, *agents], proc {|cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).once
 
       subject.simple_monolithic_install(monolithic, agents)
     end
