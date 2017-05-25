@@ -423,6 +423,8 @@ module Beaker
           return :generic if hosts.map {|host| host['pe_ver']}.uniq.length > 1
           return :generic if opts[:type] == :upgrade
           return :generic if version_is_less(opts[:pe_ver] || hosts.first['pe_ver'], '2016.4')
+          #PE-20610 Do a generic install for old versions on windows that needs msi install because of PE-18351
+          return :generic if hosts.any? {|host| host['platform'] =~ /windows/ && install_via_msi?(host)}
 
           mono_roles = ['master', 'database', 'dashboard']
           if has_all_roles?(hosts.first, mono_roles) && hosts.drop(1).all? {|host| host['roles'].include?('frictionless')}

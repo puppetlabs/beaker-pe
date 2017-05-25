@@ -943,6 +943,11 @@ describe ClassMixedWithDSLInstallUtils do
       hosts = [monolithic, master, agent, agent, agent]
       expect(subject.determine_install_type(hosts, {})).to eq(:generic)
     end
+    it 'identifies an install that requires windows msi install as generic' do
+      win_agent = make_host('agent', :pe_ver => '2016.4.0', :platform => 'win-2008r2', :roles => ['frictionless'])
+      hosts = [monolithic, agent, win_agent]
+      expect(subject.determine_install_type(hosts, {})).to eq(:generic)
+    end
   end
 
   describe '#deploy_frictionless_to_master' do
