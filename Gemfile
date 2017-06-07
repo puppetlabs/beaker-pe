@@ -1,3 +1,4 @@
+#Just testing the pipeline, do not merge!
 source ENV['GEM_SOURCE'] || "https://rubygems.org"
 
 gemspec
