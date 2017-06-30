@@ -89,7 +89,10 @@ module Beaker
             host.exec(Beaker::Command.new('MD', [win_token_path.gsub('\\', '\\\\\\')], :cmdexe => true), :accept_all_exit_codes => true)
 
             token = credentialed_dispatcher.acquire_token_with_credentials(lifetime)
-            create_remote_file(host, "#{win_token_path}\\token", token)
+            create_remote_file(host, "#{win_token_path}\\token_with_new_line", token)
+            # remove new lines
+            path = "#{win_token_path.gsub('\\', '\\\\\\')}"
+            on(client, "printf %s \"$(<  #{path}\\token_with_new_line)\" > #{path}\\token")
           end
         end
 
