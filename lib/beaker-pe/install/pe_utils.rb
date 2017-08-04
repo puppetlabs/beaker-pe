@@ -551,6 +551,10 @@ module Beaker
           step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
             on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
           end
+
+          step "Determine if uninstaller needs to be copied to agents" do
+            copy_uninstaller_to_aix_agents(hosts) if hosts.any? {|host| host['platform'] =~ /aix/}
+          end
         end
 
         def generic_install hosts, opts = {}
@@ -718,6 +722,10 @@ module Beaker
                   check_console_status_endpoint(host)
                 end
               end
+            end
+
+            step "Determine if uninstaller needs to be copied to agents" do
+              copy_uninstaller_to_aix_agents(hosts) if hosts.any? {|host| host['platform'] =~ /aix/}
             end
           end
         end
@@ -1532,6 +1540,37 @@ module Beaker
               # scp conf.d over from master
               scp_from(host, "#{MEEP_DATA_DIR}/conf.d", BEAKER_MEEP_TMP)
             end
+          end
+        end
+
+        #Copy the uninstaller from the master to the working directory for all AIX agents
+        def copy_uninstaller_to_aix_agents(hosts)
+          aix_hosts = []
+          hosts.each do |host|
+            if(host.platform =~ /aix/)
+              aix_hosts.push(host)
+            end
+          end
+          path_to_uninstaller = "#{master['working_dir']}/puppet-enterprise-#{master['pe_ver']}-#{master['platform']}"
+          tmpdir = Dir.mktmpdir
+          scp_from(master, "#{path_to_uninstaller}/puppet-enterprise-uninstaller", tmpdir)
+          aix_hosts.each do |aix_host|
+            scp_to(aix_host, "#{tmpdir}/puppet-enterprise-uninstaller", "/tmp")
+          end
+        end
+
+        def uninstall_aix_agent(host)
+          step "Run the uninstaller on the host" do
+            on(host, "/tmp/puppet-enterprise-uninstaller -d -p -y")
+          end
+          step "validate pxp-agent service is removed" do
+            on host, "lssrc -s pxp-agent", :acceptable_exit_codes => [1]
+          end
+          step "validate puppet service is removed" do
+            on host, "lssrc -s puppet", :acceptable_exit_codes => [1]
+          end
+          step "validate mcollective service is removed" do
+            on host, "lssrc -s mcollective", :acceptable_exit_codes => [1]
           end
         end
       end
