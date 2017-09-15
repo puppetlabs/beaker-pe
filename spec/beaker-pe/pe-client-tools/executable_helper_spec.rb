@@ -52,6 +52,12 @@ describe MixedWithExecutableHelper do
     it_behaves_like 'pe-client-tool'
   end
 
+  context 'puppet-task' do
+    let(:tool) {'task'}
+
+    it_behaves_like 'pe-client-tool'
+  end
+
   it 'has a method to login with puppet access' do
     expect(subject.respond_to?('login_with_puppet_access_on')).not_to be(false)
   end

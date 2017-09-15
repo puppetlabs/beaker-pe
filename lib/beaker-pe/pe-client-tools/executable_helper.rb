@@ -61,6 +61,15 @@ module Beaker
           Private.new.tool(:query, *args, &block)
         end
 
+        # puppet-task helper win/lin/osx
+        # @param [BEAKER::Host] host The SUT that should run the puppet-task command
+        # @param [String] args The arguments to puppet-task
+        # @param [Hash] opts options hash to the Beaker Command
+        # @param [Block] &block optional block
+        def puppet_task_on(*args, &block)
+          Private.new.tool(:task, *args, &block)
+        end
+
         # Logs a user in on a SUT with puppet-access/RBAC API (windows)
         # @param [Beaker::Host] host The SUT to perform the login on
         # @param [Scooter::HttpDispatchers::ConsoleDispatcher] credentialed_dispatcher A Scooter dispatcher that has credentials for the user
