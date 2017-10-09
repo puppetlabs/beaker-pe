@@ -333,9 +333,14 @@ module Beaker
             # We install Puppet from the master for frictionless installs, so we don't need to *fetch* anything
             next if host['roles'].include?('frictionless') && (! version_is_less(opts[:pe_ver] || host['pe_ver'], '3.2.0'))
 
-            if host['platform'] =~ /windows/
-              fetch_pe_on_windows(host, opts)
-            elsif host['platform'] =~ /osx/
+            # Windows agents install directly over HTTP and Windows can't run master
+            next if host['platform'] =~ /windows/
+
+            # DLU: if host['platform'] =~ /windows/
+            # DLU:   fetch_pe_on_windows(host, opts)
+            # DLU: elsif host['platform'] =~ /osx/
+
+            if host['platform'] =~ /osx/
               fetch_pe_on_mac(host, opts)
             else
               fetch_pe_on_unix(host, opts)
@@ -617,8 +622,18 @@ module Beaker
             #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
             elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')) || install_via_msi?(host))
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
-              msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
-              install_msi_on(host, msi_path, {}, opts)
+              #DLU : msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
+
+              path = host['pe_dir'] || opts[:pe_dir]
+              version = host['pe_ver'] || opts[:pe_ver_win]
+              filename = "#{host['dist']}"
+              extension = ".msi"
+
+              path = "#{path}"
+              path.chomp!('/')
+              link = "#{path}/#{filename}#{extension}"
+
+              install_msi_on(host, link, {}, opts)
 
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = 1

@@ -973,7 +973,7 @@ describe ClassMixedWithDSLInstallUtils do
       subject.fetch_pe( [eoshost], {} )
     end
 
-    it 'can push a local PE package to a windows host' do
+    it 'should not try to push a local PE package to a windows host' do
       allow( File ).to receive( :directory? ).and_return( true ) #is local
       allow( File ).to receive( :exists? ).and_return( true ) #is present
       winhost['dist'] = 'puppet-enterprise-3.0'
@@ -982,7 +982,7 @@ describe ClassMixedWithDSLInstallUtils do
       path = winhost['pe_dir']
       filename = "puppet-enterprise-#{ winhost['pe_ver'] }"
       extension = '.msi'
-      expect( subject ).to receive( :scp_to ).with( winhost, "#{ path }/#{ filename }#{ extension }", "#{ winhost['working_dir'] }/#{ filename }#{ extension }" ).once
+      expect( subject ).to receive( :scp_to ).with( winhost, "#{ path }/#{ filename }#{ extension }", "#{ winhost['working_dir'] }/#{ filename }#{ extension }" ).exactly(0).times
       subject.fetch_pe( [winhost], {} )
 
     end
