@@ -60,6 +60,17 @@ describe ClassMixedWithDSLInstallUtils do
                                                 :working_dir => '/tmp',
                                                 :dist => 'puppet-enterprise-3.7.1-rc0-78-gffc958f-eos-4-i386' } ) }
 
+  let(:lei_hosts)     { make_hosts( { :pe_ver => '3.0',
+                                      :platform => 'linux',
+                                      :roles => [ 'agent' ],
+                                      :type => 'pe'}, 4 ) }
+  let(:lb_test_hosts) { lei_hosts[0][:roles] = ['master', 'database', 'dashboard']
+                        lei_hosts[1][:roles] = ['loadbalancer', 'lb_connect']
+                        lei_hosts[2][:roles] = ['compile_master']
+                        lei_hosts[3][:roles] = ['frictionless', 'lb_connect']
+                        lei_hosts[3][:working_dir] = '/tmp'
+                        lei_hosts }
+
   context '#prep_host_for_upgrade' do
 
     it 'sets per host options before global options' do
@@ -188,6 +199,26 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'loadbalancer_connecting_agents' do
+    it 'no hosts are chosen if there are no agents with lb_connect role' do
+      allow( subject ).to receive(:hosts).and_return([])
+    end
+    it 'chooses agents with lb_connect role' do
+      allow( subject ).to receive(:lb_test_hosts).and_return([lb_test_hosts[3]])
+    end
+
+  end
+
+  describe 'get_lb_downloadhost' do
+    it 'choose lb_connect loadbalancer as downloadhost, if there is one' do
+      allow( subject ).to receive(:lb_test_hosts[3]).and_return([lb_test_hosts[1]])
+    end
+    it 'if there is no lb_connect loadbalancer, return master' do
+      lei_hosts[1][:roles] = ['loadbalancer']
+      allow( subject ).to receive(:lb_test_hosts[3]).and_return([lb_test_hosts[0]])
+    end
+  end
+
   describe 'frictionless_agent_installer_cmd' do
     let(:host) do
       the_host = unixhost.dup
@@ -264,6 +295,18 @@ describe ClassMixedWithDSLInstallUtils do
       ].join(";") +
       "\""
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
+    end
+
+    it 'generates a frictionless install command with loadbalancer as download host' do
+      hosts = lb_test_hosts
+      expect( subject ).to receive( :get_lb_downloadhost ).with(lb_test_hosts[3]).and_return( 'testloadbalancer' )
+      expecting = [
+        "FRICTIONLESS_TRACE='true'",
+        "export FRICTIONLESS_TRACE",
+        "cd /tmp && curl --tlsv1 -O -k https://testloadbalancer:8140/packages/current/install.bash && bash install.bash"
+      ].join("; ")
+
+      expect( subject.frictionless_agent_installer_cmd( lb_test_hosts[3], {}, '2016.4.0' ) ).to eq(expecting)
     end
   end
 
@@ -1079,8 +1122,9 @@ describe ClassMixedWithDSLInstallUtils do
   describe '#deploy_frictionless_to_master' do
     let(:master) { make_host('master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
     let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
+    let(:compile_master) { make_host('agent', :pe_ver => '2017.2', :roles => ['frictionless', 'compile_master']) }
     let(:dispatcher) { double('dispatcher') }
-    let(:node_group) { {} }
+    let(:node_group) { { 'classes' => {} } }
 
     before :each do
       allow(subject).to receive(:retry_on)
@@ -1090,12 +1134,12 @@ describe ClassMixedWithDSLInstallUtils do
 
       allow(dispatcher).to receive(:get_node_group_by_name).and_return(node_group)
       allow(dispatcher).to receive(:create_new_node_group_model) {|model| node_group.update(model)}
+      allow(subject).to receive(:compile_masters).and_return([compile_master])
     end
 
-    it 'adds the right pe_repo class to the Beaker Frictionless Agent group' do
+    it 'adds the right pe_repo class to the PE Master group' do
       subject.deploy_frictionless_to_master(agent)
 
-      expect(node_group['rule']).to eq(['and', ['=', 'name', 'master']])
       expect(node_group['classes']).to include('pe_repo::platform::el_7_x86_64')
     end
 
@@ -1449,6 +1493,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:prepare_host_installer_options)
       allow(subject).to receive(:generate_installer_conf_file_for)
       allow(subject).to receive(:deploy_frictionless_to_master)
+      allow(subject).to receive(:install_agents_only_on)
 
       allow(subject).to receive(:installer_cmd).with(monolithic, anything()).and_return("install master")
       allow(subject).to receive(:installer_cmd).with(el_agent, anything()).and_return("install el agent")
@@ -1458,44 +1503,66 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:sign_certificate_for)
     end
 
-    describe 'configuring frictionless installer' do
-      it "skips the master's platform" do
-        expect(subject).not_to receive(:deploy_frictionless_to_master)
-
-        subject.simple_monolithic_install(monolithic, [el_agent, el_agent, el_agent])
-      end
-
-      it "adds frictionless install classes for other platforms" do
-        expect(subject).to receive(:deploy_frictionless_to_master).with(deb_agent)
-
-        subject.simple_monolithic_install(monolithic, [el_agent, deb_agent])
-      end
-    end
-
     it 'installs on the master then on the agents' do
       expect(subject).to receive(:on).with(monolithic, "install master").ordered
-      expect(subject).to receive(:block_on).with([el_agent, el_agent], :run_in_parallel => true).ordered
-
+      expect(subject).to receive(:install_agents_only_on).with([el_agent, el_agent], {}).ordered
       subject.simple_monolithic_install(monolithic, [el_agent, el_agent])
-    end
-
-    it 'installs agents in parallel' do
-      expect(subject).to receive(:block_on).with([el_agent, el_agent, deb_agent, deb_agent], :run_in_parallel => true)
-
-      subject.simple_monolithic_install(monolithic, [el_agent, el_agent, deb_agent, deb_agent])
-    end
-
-    it 'signs certificates then stops agents to avoid interference with tests' do
-      agents = [el_agent, el_agent, deb_agent, deb_agent]
-      expect(subject).to receive(:sign_certificate_for).with(agents).ordered
-      expect(subject).to receive(:stop_agent_on).with([monolithic, *agents], :run_in_parallel => true).ordered
-
-      subject.simple_monolithic_install(monolithic, agents)
     end
 
     it "calls prepare_hosts on all hosts instead of just master" do
       expect(subject).to receive(:prepare_hosts).with([monolithic] + [el_agent, el_agent, el_agent], {})
       subject.simple_monolithic_install(monolithic, [el_agent, el_agent, el_agent])
+    end
+  end
+
+  describe 'install_agents_only_on' do
+    let(:monolithic) { make_host('monolithic',
+                                 :pe_ver => '2016.4',
+                                 :platform => 'el-7-x86_64',
+                                 :roles => ['master', 'database', 'dashboard']) }
+    let(:agent) { make_host('agent',
+                            :pe_ver => '2016.4',
+                            :platform => 'el-7-x86_64',
+                            :roles => ['frictionless']) }
+    before :each do
+      allow(subject).to receive(:on)
+      allow(subject).to receive(:hosts).and_return([monolithic, agent, agent])
+      allow(subject).to receive(:configure_type_defaults_on)
+      allow(subject).to receive(:deploy_frictionless_to_master)
+      allow(subject).to receive(:stop_agent_on)
+      allow(subject).to receive(:sign_certificate_for)
+      allow(subject).to receive(:installer_cmd).with(agent, anything()).and_return("install agent")
+    end
+
+    it 'does not call deploy_frictionless_to_master if agent platform is same as master' do
+      expect(subject).not_to receive(:deploy_frictionless_to_master)
+      subject.install_agents_only_on([agent], opts)
+    end
+
+    it 'calls deploy_frictionless_to_master if agent platform is different from master' do
+      agent['platform'] = 'deb-7-x86_64'
+      expect(subject).to receive(:deploy_frictionless_to_master)
+      subject.install_agents_only_on([agent], opts)
+    end
+
+    it 'installs agent on agent hosts' do
+      agents = [agent, agent]
+      expect(subject).to receive(:block_on).with(agents, :run_in_parallel => true)
+      subject.install_agents_only_on(agents, opts)
+    end
+
+    it 'signs certificate and stops agent on agent host' do
+      agents = [agent, agent]
+      expect(subject).to receive(:sign_certificate_for).with(agents)
+      expect(subject).to receive(:stop_agent_on).with(agents, :run_in_parallel => true)
+      subject.install_agents_only_on(agents, opts)
+    end
+
+    it 'runs puppet on agent hosts' do
+      agents = [agent, agent]
+      expect(subject).to receive(:on).with(agents, proc {
+        |cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).once
+      subject.install_agents_only_on(agents, opts)
     end
   end
 

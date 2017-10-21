@@ -101,6 +101,30 @@ module Beaker
           end
         end
 
+        # Return agent nodes with 'lb_connect' role that are not loadbalancers
+        def loadbalancer_connecting_agents
+          lb_connect_nodes = select_hosts(roles: ['lb_connect'])
+          lb_connect_agents = lb_connect_nodes.reject { |h| h['roles'].include?('loadbalancer')}
+        end
+
+        # Returns true if loadbalncer exists and is configured with 'lb_connect' role
+        def lb_connect_loadbalancer_exists?
+          if any_hosts_as?('loadbalancer')
+            lb_node = select_hosts(roles: ['loadbalancer'])
+            lb_node.first['roles'].include?('lb_connect')
+          end
+        end
+
+        #Returns loadbalancer if host is an agent and loadbalancer has lb_connect role
+        #@param [Host] agent host with lb_connect role
+        def get_lb_downloadhost(host)
+          downloadhost = master
+          if !host['roles'].include?('loadbalancer') &&  lb_connect_loadbalancer_exists?
+            downloadhost = loadbalancer
+          end
+          downloadhost
+        end
+
         # Generate the command line string needed to from a frictionless puppet-agent
         # install on this host in a PE environment.
         #
@@ -124,6 +148,14 @@ module Beaker
             end
           end
 
+          # If this is an agent node configured to connect to the loadbalancer
+          # using 'lb_connect' role, then use loadbalancer in the download url
+          # instead of master
+          downloadhost = master
+          if host['roles'].include?('lb_connect')
+            downloadhost = get_lb_downloadhost(host)
+          end
+
           pe_debug = host[:pe_debug] || opts[:pe_debug] ? ' -x' : ''
           use_puppet_ca_cert = host[:use_puppet_ca_cert] || opts[:use_puppet_ca_cert]
 
@@ -135,7 +167,7 @@ module Beaker
               cert_validator = '[Net.ServicePointManager]::ServerCertificateValidationCallback = {\\$true}'
             end
 
-            cmd = %Q{powershell -c "cd #{host['working_dir']};#{cert_validator};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{master}:8140/packages/current/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}"}
+            cmd = %Q{powershell -c "cd #{host['working_dir']};#{cert_validator};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{downloadhost}:8140/packages/current/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}"}
           else
             curl_opts = %w{--tlsv1 -O}
             if use_puppet_ca_cert
@@ -144,7 +176,7 @@ module Beaker
               curl_opts << '-k'
             end
 
-            cmd = "FRICTIONLESS_TRACE='true'; export FRICTIONLESS_TRACE; cd #{host['working_dir']} && curl #{curl_opts.join(' ')} https://#{master}:8140/packages/current/install.bash && bash#{pe_debug} install.bash #{frictionless_install_opts.join(' ')}".strip
+            cmd = "FRICTIONLESS_TRACE='true'; export FRICTIONLESS_TRACE; cd #{host['working_dir']} && curl #{curl_opts.join(' ')} https://#{downloadhost}:8140/packages/current/install.bash && bash#{pe_debug} install.bash #{frictionless_install_opts.join(' ')}".strip
           end
 
           return cmd
@@ -376,33 +408,37 @@ module Beaker
           else
             _console_dispatcher = get_console_dispatcher_for_beaker_pe!
 
-            # Check if we've already created a frictionless agent node group
-            # to avoid errors creating the same node group when the beaker hosts file contains
-            # multiple hosts with the same platform
-            node_group = _console_dispatcher.get_node_group_by_name('Beaker Frictionless Agent')
-            if node_group.nil? || node_group.empty?
-              node_group = {}
-              node_group['name'] = "Beaker Frictionless Agent"
-              # Pin the master to the node
-              node_group['rule'] = [ "and",  [ '=', 'name', master.to_s ]]
-              node_group['classes'] ||= {}
-            end
+            # Add pe_repo packages to 'PE Master' group
+            node_group = _console_dispatcher.get_node_group_by_name('PE Master')
 
             # add the pe_repo platform class if it's not already present
-            if ! node_group['classes'].include?(klass)
-              node_group['classes'][klass] = {}
+            if node_group
+              if !node_group['classes'].include?(klass)
+                node_group['classes'][klass] = {}
+                _console_dispatcher.create_new_node_group_model(node_group)
 
-              _console_dispatcher.create_new_node_group_model(node_group)
-              # The puppet agent run that will download the agent tarballs to the master can sometimes fail with
-              # curl errors if there is a network hiccup. Use beakers `retry_on` method to retry up to
-              # three times to avoid failing the entire test pipeline due to a network blip
-              retry_opts = {
-                :desired_exit_codes => [0,2],
-                :max_retries => 3,
-                # Beakers retry_on method wants the verbose value to be a string, not a bool.
-                :verbose => 'true'
-              }
-              retry_on(master, puppet("agent -t"), retry_opts)
+                # The puppet agent run that will download the agent tarballs to the master can sometimes fail with
+                # curl errors if there is a network hiccup. Use beakers `retry_on` method to retry up to
+                # three times to avoid failing the entire test pipeline due to a network blip
+                retry_opts = {
+                  :desired_exit_codes => [0,2],
+                  :max_retries => 3,
+                  # Beakers retry_on method wants the verbose value to be a string, not a bool.
+                  :verbose => 'true'
+                }
+                retry_on(master, puppet("agent -t"), retry_opts)
+
+                # If we are connecting through loadbalancer, download the agent tarballs to compile masters
+                if lb_connect_loadbalancer_exists?
+                  hosts.each do |h|
+                    if h['roles'].include?('compile_master')
+                      retry_on(h, puppet("agent -t"), retry_opts)
+                    end
+                  end
+                end
+              end
+            else
+              raise "Failed to add pe_repo packages, PE Master node group is not available"
             end
           end
         end
@@ -507,7 +543,7 @@ module Beaker
         def simple_monolithic_install(master, agents, opts={})
           step "Performing a standard monolithic install with frictionless agents"
           all_hosts = [master, *agents]
-          configure_type_defaults_on(all_hosts)
+          configure_type_defaults_on([master])
 
           # Set PE distribution on the agents, creates working directories
           prepare_hosts(all_hosts, opts)
@@ -518,41 +554,11 @@ module Beaker
             on master, installer_cmd(master, opts)
           end
 
-          step "Setup frictionless installer on the master" do
-            agents.each do |agent|
-              # If We're *not* running the classic installer, we want
-              # to make sure the master has packages for us.
-              if agent['platform'] != master['platform'] # only need to do this if platform differs
-                deploy_frictionless_to_master(agent)
-              end
-            end
-          end
-
-          step "Install agents" do
-            block_on(agents, {:run_in_parallel => true}) do |host|
-              install_ca_cert_on(host, opts)
-              on(host, installer_cmd(host, opts))
-            end
-          end
-
-          step "Sign agent certificates" do
-            # This will sign all cert requests
-            sign_certificate_for(agents)
-          end
-
-          step "Stop puppet agents to avoid interfering with tests" do
-            stop_agent_on(all_hosts, :run_in_parallel => true)
-          end
+          install_agents_only_on(agents, opts)
 
           step "Run puppet to setup mcollective and pxp-agent" do
             on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
             run_puppet_on_non_infrastructure_nodes(all_hosts)
-
-            #Workaround for windows frictionless install, see BKR-943 for the reason
-            agents.select {|agent| agent['platform'] =~ /windows/}.each do |agent|
-              client_datadir = agent.puppet['client_datadir']
-              on(agent, puppet("resource file \"#{client_datadir}\" ensure=absent force=true"))
-            end
           end
 
           step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
@@ -1547,6 +1553,52 @@ module Beaker
               # scp conf.d over from master
               scp_from(host, "#{MEEP_DATA_DIR}/conf.d", BEAKER_MEEP_TMP)
             end
+          end
+        end
+
+        # Method to install just the agent nodes
+        # This method can be called only after installing PE on infrastructure nodes
+        # @param [Array] agent only nodes from Beaker hosts
+        # @param [Hash] opts The Beaker options hash
+        def install_agents_only_on(agent_nodes, opts)
+          unless agent_nodes.empty?
+            configure_type_defaults_on(agent_nodes)
+
+             step "Setup frictionless installer on the master" do
+               agent_nodes.each do |agent|
+                 # If We're *not* running the classic installer, we want
+                 # to make sure the master has packages for us.
+                 if agent['platform'] != master['platform'] # only need to do this if platform differs
+                   deploy_frictionless_to_master(agent)
+                 end
+               end
+             end
+
+             step "Install agents" do
+               block_on(agent_nodes, {:run_in_parallel => true}) do |host|
+                 install_ca_cert_on(host, opts)
+                 on(host, installer_cmd(host, opts))
+               end
+             end
+
+             step "Sign agent certificates" do
+               # This will sign all cert requests
+               sign_certificate_for(agent_nodes)
+             end
+
+             step "Stop puppet agents to avoid interfering with tests" do
+               stop_agent_on(agent_nodes, :run_in_parallel => true)
+             end
+
+             step "Run puppet on all agent nodes" do
+               on agent_nodes, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
+             end
+
+             #Workaround for windows frictionless install, see BKR-943
+             agent_nodes.select {|agent| agent['platform'] =~ /windows/}.each do |agent|
+               client_datadir = agent.puppet['client_datadir']
+               on(agent, puppet("resource file \"#{client_datadir}\" ensure=absent force=true"))
+             end
           end
         end
       end
