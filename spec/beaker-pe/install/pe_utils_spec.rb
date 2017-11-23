@@ -60,17 +60,6 @@ describe ClassMixedWithDSLInstallUtils do
                                                 :working_dir => '/tmp',
                                                 :dist => 'puppet-enterprise-3.7.1-rc0-78-gffc958f-eos-4-i386' } ) }
 
-  let(:lei_hosts)     { make_hosts( { :pe_ver => '3.0',
-                                      :platform => 'linux',
-                                      :roles => [ 'agent' ],
-                                      :type => 'pe'}, 4 ) }
-  let(:lb_test_hosts) { lei_hosts[0][:roles] = ['master', 'database', 'dashboard']
-                        lei_hosts[1][:roles] = ['loadbalancer', 'lb_connect']
-                        lei_hosts[2][:roles] = ['compile_master']
-                        lei_hosts[3][:roles] = ['frictionless', 'lb_connect']
-                        lei_hosts[3][:working_dir] = '/tmp'
-                        lei_hosts }
-
   context '#prep_host_for_upgrade' do
 
     it 'sets per host options before global options' do
@@ -199,22 +188,6 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
-  describe 'loadbalancer_connecting_agents' do
-    it 'no hosts are chosen if there are no agents with lb_connect role' do
-      allow( subject ).to receive(:hosts).and_return([])
-    end
-    it 'chooses agents with lb_connect role' do
-      allow( subject ).to receive(:lb_test_hosts).and_return([lb_test_hosts[3]])
-    end
-
-  end
-
-  describe 'get_lb_downloadhost' do
-    it 'choose lb_connect loadbalancer, if there is one' do
-      allow( subject ).to receive(:lb_test_hosts[3]).and_return([lb_test_hosts[1]])
-    end
-  end
-
   describe 'frictionless_agent_installer_cmd' do
     let(:host) do
       the_host = unixhost.dup
@@ -291,18 +264,6 @@ describe ClassMixedWithDSLInstallUtils do
       ].join(";") +
       "\""
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
-    end
-
-    it 'generates a frictionless install command with loadbalancer as download host' do
-      hosts = lb_test_hosts
-      expect( subject ).to receive( :get_lb_downloadhost ).with(lb_test_hosts[3]).and_return( 'testloadbalancer' )
-      expecting = [
-        "FRICTIONLESS_TRACE='true'",
-        "export FRICTIONLESS_TRACE",
-        "cd /tmp && curl --tlsv1 -O -k https://testloadbalancer:8140/packages/current/install.bash && bash install.bash"
-      ].join("; ")
-
-      expect( subject.frictionless_agent_installer_cmd( lb_test_hosts[3], {}, '2016.4.0' ) ).to eq(expecting)
     end
   end
 
@@ -1118,14 +1079,8 @@ describe ClassMixedWithDSLInstallUtils do
   describe '#deploy_frictionless_to_master' do
     let(:master) { make_host('master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
     let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
-    let(:compile_master) { make_host('agent', :pe_ver => '2017.2', :roles => ['frictionless', 'compile_master']) }
     let(:dispatcher) { double('dispatcher') }
-    let(:node_group) do
-      {
-          'classes' => {
-          },
-      }
-    end
+    let(:node_group) { {} }
 
     before :each do
       allow(subject).to receive(:retry_on)
@@ -1135,12 +1090,12 @@ describe ClassMixedWithDSLInstallUtils do
 
       allow(dispatcher).to receive(:get_node_group_by_name).and_return(node_group)
       allow(dispatcher).to receive(:create_new_node_group_model) {|model| node_group.update(model)}
-      allow(subject).to receive(:compile_masters).and_return([compile_master])
     end
 
-    it 'adds the right pe_repo class to the PE Master group' do
+    it 'adds the right pe_repo class to the Beaker Frictionless Agent group' do
       subject.deploy_frictionless_to_master(agent)
 
+      expect(node_group['rule']).to eq(['and', ['=', 'name', 'master']])
       expect(node_group['classes']).to include('pe_repo::platform::el_7_x86_64')
     end
 
@@ -1502,22 +1457,6 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:stop_agent_on)
       allow(subject).to receive(:sign_certificate_for)
     end
-
-  describe 'install_agents_only_on' do
-    let(:lb_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'debian-7-x86_64', :roles => ['frictionless', 'lb_connect']) }
-
-    before :each do
-      allow(subject).to receive(:on)
-      allow(subject).to receive(:configure_type_defaults_on)
-      allow(subject).to receive(:deploy_frictionless_to_master)
-      allow(subject).to receive(:install_agents_only_on)
-
-      allow(subject).to receive(:installer_cmd).with(lb_agent, anything()).and_return("install lb agent")
-
-      allow(subject).to receive(:stop_agent_on)
-      allow(subject).to receive(:sign_certificate_for)
-    end
-  end
 
     describe 'configuring frictionless installer' do
       it "skips the master's platform" do
