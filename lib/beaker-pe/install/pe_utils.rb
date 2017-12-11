@@ -192,6 +192,11 @@ module Beaker
           end
         end
 
+        #This calls the installer command on the host in question
+        def execute_installer_cmd(host, opts)
+          on host, installer_cmd(host, opts)
+        end
+
         #Determine the PE package to download/upload on a mac host, download/upload that package onto the host.
         # Assumed file name format: puppet-enterprise-3.3.0-rc1-559-g97f0833-osx-10.9-x86_64.dmg.
         # @param [Host] host The mac host to download/upload and unpack PE onto
@@ -440,6 +445,8 @@ module Beaker
           # detect the kind of install we're doing
           install_type = determine_install_type(hosts, opts)
           case install_type
+          when :pe_managed_postgres
+            do_install_pe_with_pe_managed_external_postgres(hosts,opts)
           when :simple_monolithic
             simple_monolithic_install(hosts.first, hosts.drop(1), opts)
           when :simple_split
@@ -463,13 +470,16 @@ module Beaker
         #   determine_install_type(hosts, {:type => :install, :pe_ver => '2017.2.0'})
         #
         # @return [Symbol]
-        #   One of :generic, :simple_monolithic, :simple_split
+        #   One of :generic, :simple_monolithic, :simple_split, :pe_managed_postgres
         #   :simple_monolithic
         #     returned when installing >=2016.4 with a monolithic master and
         #     any number of frictionless agents
         #   :simple_split
         #     returned when installing >=2016.4 with a split install and any
         #     number of frictionless agents
+        #   :pe_managed_postgres
+        #     returned when installing PE with postgres being managed on a node
+        #     that is different then the database node
         #   :generic
         #     returned for any other install or upgrade
         #
@@ -488,6 +498,8 @@ module Beaker
             :simple_monolithic
           elsif hosts[0]['roles'].include?('master') && hosts[1]['roles'].include?('database') && hosts[2]['roles'].include?('dashboard') && hosts.drop(3).all? {|host| host['roles'].include?('frictionless')}
             :simple_split
+          elsif hosts.any? {|host| host['roles'].include?('pe_postgres')}
+            :pe_managed_postgres
           else
             :generic
           end
@@ -1298,6 +1310,55 @@ module Beaker
           do_higgs_install higgs_host, options
         end
 
+        #Installs PE with a PE managed external postgres
+        def do_install_pe_with_pe_managed_external_postgres(hosts, opts)
+
+          is_upgrade = (original_pe_ver(hosts[0]) != hosts[0][:pe_ver])
+          step "Setup tmp installer directory and pe.conf" do
+
+            prepare_hosts(hosts,opts)
+            register_feature_flags!(opts)
+            fetch_pe(hosts,opts)
+
+            [master, database, dashboard, pe_postgres].uniq.each do |host|
+              prepare_host_installer_options(host)
+
+              unless is_upgrade
+                setup_pe_conf(host, hosts, opts)
+              end
+            end
+          end
+
+          unless is_upgrade
+            step "Initial master install, expected to fail due to RBAC database not being initialized" do
+              begin
+                execute_installer_cmd(master, opts)
+              rescue Beaker::Host::CommandFailure => e
+                #The way the master fails to install includes this specific line as of PE 2018.1.x.
+                unless e.message =~ /The operation could not be completed because RBACs database has not been initialized/
+                  raise "Install on master failed in an unexpected manner"
+                end
+              end
+            end
+          end
+
+          step "Install/Upgrade postgres service on pe-postgres node" do
+            execute_installer_cmd(pe_postgres, opts)
+          end
+
+          step "Finish install/upgrade on infrastructure" do
+              [master, database, dashboard].uniq.each do |host|
+                execute_installer_cmd(host, opts)
+              end
+          end
+
+          step "Final puppet run on infrastructure + postgres node" do
+            [master, database, dashboard, pe_postgres].uniq.each do |host|
+              on host, 'puppet agent -t', :acceptable_exit_codes => [0,2]
+            end
+          end
+        end
+
         # Grabs the pe file from a remote host to the machine running Beaker, then
         # scp's the file out to the host.
         #
@@ -1471,6 +1532,23 @@ module Beaker
             then %Q{"#{key}"}
           else key
           end
+        end
+
+        # Return the original pe_ver setting for the passed host.
+        # Beaker resets pe_ver to the value of pe_upgrade_ver during its upgrade process.
+        # If the hosts's original configuration did not have a pe_ver, return the
+        # value of pe_ver set directly in options.  It's the Host['pe_ver'] that
+        # gets overwritten by Beaker on upgrade.  So if the original host config did not
+        # have a pe_ver set, there should be a pe_ver set in options and we can use
+        # that.
+        def original_pe_ver(host)
+          options[:HOSTS][host.name][:pe_ver] || options[:pe_ver]
+        end
+
+        # Returns the version of PE that the host will be upgraded to
+        # If no upgrade is planned then just the version of PE to install is returned
+        def upgrading_to_pe_ver(host)
+          options[:HOSTS][host.name][:pe_upgrade_ver] || options[:pe_ver]
         end
 
         # @return a Ruby object of any root key in pe.conf.
