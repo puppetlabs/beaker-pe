@@ -1070,6 +1070,7 @@ describe ClassMixedWithDSLInstallUtils do
     let(:puppetdb) { make_host('puppetdb', :pe_ver => '2016.4', :roles => [ 'database' ]) }
     let(:console) { make_host('console', :pe_ver => '2016.4', :roles => [ 'dashboard' ]) }
     let(:agent) { make_host('agent', :pe_ver => '2016.4', :roles => ['frictionless']) }
+    let(:pe_postgres) { make_host('pe_postgres', :pe_ver => '2016.4', :roles => [ 'pe_postgres' ]) }
 
     it 'identifies a monolithic install with frictionless agents' do
       hosts = [monolithic, agent, agent, agent]
@@ -1112,10 +1113,158 @@ describe ClassMixedWithDSLInstallUtils do
       hosts = [monolithic, master, agent, agent, agent]
       expect(subject.determine_install_type(hosts, {})).to eq(:generic)
     end
+
     it 'identifies an install that requires windows msi install as generic' do
       win_agent = make_host('agent', :pe_ver => '2016.4.0', :platform => 'win-2008r2', :roles => ['frictionless'])
       hosts = [monolithic, agent, win_agent]
       expect(subject.determine_install_type(hosts, {})).to eq(:generic)
+    end
+
+    it 'identifies a monolithic install with an external postgres node install as pe_managed_postgres' do
+      hosts = [monolithic, pe_postgres]
+      expect(subject.determine_install_type(hosts, {})).to eq(:pe_managed_postgres)
+    end
+
+    it 'identifies a split install with an external postgres node install as pe_managed_postgres' do
+      hosts = [master, puppetdb, console, pe_postgres]
+      expect(subject.determine_install_type(hosts, {})).to eq(:pe_managed_postgres)
+    end
+  end
+
+  describe 'do_install_pe_with_pe_managed_external_postgres' do
+    let(:mono_master) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
+    let(:pe_postgres) { make_host('pe_postgres', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['pe_postgres', 'agent']) }
+    let(:split_master) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'agent']) }
+    let(:split_database) { make_host('split_database', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['database', 'agent']) }
+    let(:split_console) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['dashboard', 'agent']) }
+
+    it 'will do a monolithic installation of PE with an external postgres that is managed by PE' do
+      allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
+      allow(subject).to receive(:master).and_return(mono_master)
+      allow(subject).to receive(:database).and_return(mono_master)
+      allow(subject).to receive(:dashboard).and_return(mono_master)
+      allow(subject).to receive(:pe_postgres).and_return(pe_postgres)
+
+      allow(subject).to receive(:original_pe_ver).and_return('2017.2')
+      allow(subject).to receive(:prepare_host_installer_options).exactly(2).times
+      allow(subject).to receive(:setup_pe_conf).exactly(2).times
+
+      #installer command on master is called twice on install
+      allow(subject).to receive(:execute_installer_cmd).with(mono_master, {}).twice
+      allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
+
+      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
+
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres], {}) }.not_to raise_error
+    end
+
+    it 'will do a monolithic upgrade of PE with an external postgres that is managed by PE' do
+      allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
+      allow(subject).to receive(:master).and_return(mono_master)
+      allow(subject).to receive(:database).and_return(mono_master)
+      allow(subject).to receive(:dashboard).and_return(mono_master)
+      allow(subject).to receive(:pe_postgres).and_return(pe_postgres)
+
+      allow(subject).to receive(:original_pe_ver).and_return('2016.4')
+      allow(subject).to receive(:prepare_host_installer_options).exactly(2).times
+      allow(subject).to receive(:setup_pe_conf).exactly(2).times
+
+      #installer command on master is only called once on upgrade
+      allow(subject).to receive(:execute_installer_cmd).with(mono_master, {}).once
+      allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
+
+      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
+
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres], {}) }.not_to raise_error
+    end
+
+    it 'will do a split installation of PE with an external postgres that is managed by PE' do
+      allow(subject).to receive(:fetch_pe).with([split_master, split_database, split_console, pe_postgres], {}).and_return(true)
+      allow(subject).to receive(:master).and_return(split_master)
+      allow(subject).to receive(:database).and_return(split_database)
+      allow(subject).to receive(:dashboard).and_return(split_console)
+      allow(subject).to receive(:pe_postgres).and_return(pe_postgres)
+
+      allow(subject).to receive(:original_pe_ver).and_return('2017.2')
+      allow(subject).to receive(:prepare_host_installer_options).exactly(4).times
+      allow(subject).to receive(:setup_pe_conf).exactly(4).times
+
+      #installer command on master is called twice on install
+      allow(subject).to receive(:execute_installer_cmd).with(split_master, {}).twice
+      allow(subject).to receive(:execute_installer_cmd).with(split_database, {}).once
+      allow(subject).to receive(:execute_installer_cmd).with(split_console, {}).once
+      allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
+
+      allow(subject).to receive(:on).with(split_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(split_database, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(split_console, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
+
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([split_master, split_database, split_console, pe_postgres], {}) }.not_to raise_error
+    end
+
+    it 'will do a split upgrade of PE with an external postgres that is managed by PE' do
+      allow(subject).to receive(:fetch_pe).with([split_master, split_database, split_console, pe_postgres], {}).and_return(true)
+      allow(subject).to receive(:master).and_return(split_master)
+      allow(subject).to receive(:database).and_return(split_database)
+      allow(subject).to receive(:dashboard).and_return(split_console)
+      allow(subject).to receive(:pe_postgres).and_return(pe_postgres)
+
+      allow(subject).to receive(:original_pe_ver).and_return('2016.4')
+      allow(subject).to receive(:prepare_host_installer_options).exactly(4).times
+      allow(subject).to receive(:setup_pe_conf).exactly(4).times
+
+      #installer command on master is called once on upgrade
+      allow(subject).to receive(:execute_installer_cmd).with(split_master, {}).once
+      allow(subject).to receive(:execute_installer_cmd).with(split_database, {}).once
+      allow(subject).to receive(:execute_installer_cmd).with(split_console, {}).once
+      allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
+
+      allow(subject).to receive(:on).with(split_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(split_database, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(split_console, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
+
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([split_master, split_database, split_console, pe_postgres], {}) }.not_to raise_error
+    end
+  end
+
+  describe 'execute_installer_cmd' do
+    let(:mono_master) { make_host('mono_master', :pe_installer => 'pe_installer', :working_dir => "tmp/2014-07-01_15.27.53", :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
+
+    it 'will call on with the installer command on the given host' do
+      allow(subject).to receive(:on).with(mono_master, "cd tmp/2014-07-01_15.27.53/ && ./pe_installer -y ")
+      expect{ subject.execute_installer_cmd(mono_master, {}) }.not_to raise_error
+    end
+  end
+
+  describe 'original_pe_ver' do
+    let(:master) { make_host('master', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
+
+    it 'Returns the original pe ver when in upgrade situtaiton' do
+      subject.options = {:HOSTS => { 'master' => {:pe_ver => '2016.4.0'}}, :pe_ver => '2017.2'}
+      expect(subject.original_pe_ver(master)).to eq('2016.4.0')
+    end
+
+    it 'Returns the only pe ver when in non-upgrade sistuation' do
+      subject.options = {:HOSTS => { 'master' => {:pe_ver => '2017.2'}}, :pe_ver => '2017.2'}
+      expect(subject.original_pe_ver(master)).to eq('2017.2')
+    end
+  end
+
+  describe 'upgrading_to_pe_ver' do
+    let(:master) { make_host('master', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
+
+    it 'Returns the upgrade pe ver when in upgrade situtaiton' do
+      subject.options = {:HOSTS => { 'master' => {:pe_upgrade_ver => '2017.3'}}, :pe_ver => '2017.2'}
+      expect(subject.upgrading_to_pe_ver(master)).to eq('2017.3')
+    end
+
+    it 'Returns just pe ver when no pe_upgrade_ver is set ' do
+      subject.options = {:HOSTS => { 'master' => {:pe_upgrade_ver => nil}}, :pe_ver => '2017.2'}
+      expect(subject.upgrading_to_pe_ver(master)).to eq('2017.2')
     end
   end
 
