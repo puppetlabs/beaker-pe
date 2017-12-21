@@ -1131,12 +1131,13 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
-  describe 'do_install_pe_with_pe_managed_external_postgres' do
+  describe 'do_install_pe_with_pe_managed_external_postgres with an agent' do
     let(:mono_master) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
     let(:pe_postgres) { make_host('pe_postgres', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['pe_postgres', 'agent']) }
     let(:split_master) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'agent']) }
     let(:split_database) { make_host('split_database', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['database', 'agent']) }
     let(:split_console) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['dashboard', 'agent']) }
+    let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['agent'])}
 
     it 'will do a monolithic installation of PE with an external postgres that is managed by PE' do
       allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
@@ -1153,10 +1154,13 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:execute_installer_cmd).with(mono_master, {}).twice
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
 
-      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).exactly(3).times
       allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
 
-      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres], {}) }.not_to raise_error
+      allow(subject).to receive(:install_agents_only_on).with([agent], {})
+      allow(subject).to receive(:run_puppet_on_non_infrastructure_nodes).with([agent])
+
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.not_to raise_error
     end
 
     it 'will do a monolithic upgrade of PE with an external postgres that is managed by PE' do

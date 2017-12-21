@@ -1318,13 +1318,15 @@ module Beaker
 
         #Installs PE with a PE managed external postgres
         def do_install_pe_with_pe_managed_external_postgres(hosts, opts)
+          pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'dashboard', 'database', 'pe_postgres']}, hosts)
+          non_infrastructure = hosts.reject{|host| pe_infrastructure.include? host}
 
           is_upgrade = (original_pe_ver(hosts[0]) != hosts[0][:pe_ver])
           step "Setup tmp installer directory and pe.conf" do
 
-            prepare_hosts(hosts,opts)
+            prepare_hosts(pe_infrastructure,opts)
             register_feature_flags!(opts)
-            fetch_pe(hosts,opts)
+            fetch_pe(pe_infrastructure,opts)
 
             [master, database, dashboard, pe_postgres].uniq.each do |host|
               prepare_host_installer_options(host)
@@ -1361,6 +1363,19 @@ module Beaker
           step "Final puppet run on infrastructure + postgres node" do
             [master, database, dashboard, pe_postgres].uniq.each do |host|
               on host, 'puppet agent -t', :acceptable_exit_codes => [0,2]
+            end
+          end
+
+          if(non_infrastructure.size > 0)
+            install_agents_only_on(non_infrastructure, opts)
+
+            step "Run puppet to setup mcollective and pxp-agent" do
+              on master, 'puppet agent -t', :acceptable_exit_codes => [0,2]
+              run_puppet_on_non_infrastructure_nodes(non_infrastructure)
+            end
+
+            step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
+              on master, 'puppet agent -t', :acceptable_exit_codes => [0,2]
             end
           end
         end
