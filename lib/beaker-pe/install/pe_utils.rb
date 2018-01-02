@@ -524,7 +524,7 @@ module Beaker
           # Do a generic install if this is masterless, not all the same PE version, an upgrade, or earlier than 2016.4
           return :generic if opts[:masterless]
           return :generic if hosts.map {|host| host['pe_ver']}.uniq.length > 1
-          return :generic if opts[:type] == :upgrade
+          return :generic if (opts[:type] == :upgrade) && (hosts.none? {|host| host['roles'].include?('pe_postgres')})
           return :generic if version_is_less(opts[:pe_ver] || hosts.first['pe_ver'], '2016.4')
           #PE-20610 Do a generic install for old versions on windows that needs msi install because of PE-18351
           return :generic if hosts.any? {|host| host['platform'] =~ /windows/ && install_via_msi?(host)}
