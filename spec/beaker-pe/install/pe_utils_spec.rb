@@ -1102,6 +1102,11 @@ describe ClassMixedWithDSLInstallUtils do
       expect(subject.determine_install_type(hosts, {:type => :upgrade})).to eq(:generic)
     end
 
+    it 'identifies an upgrade with postgres as pe_managed_postgres' do
+      hosts = [master, puppetdb, console, pe_postgres]
+      expect(subject.determine_install_type(hosts, {:type => :upgrade})).to eq(:pe_managed_postgres)
+    end
+
     it 'identifies a legacy PE version as generic' do
       old_monolithic = make_host('monolithic', :pe_ver => '3.8', :roles => [ 'master', 'database', 'dashboard' ])
       old_agent = make_host('agent', :pe_ver => '3.8', :roles => ['frictionless'])
