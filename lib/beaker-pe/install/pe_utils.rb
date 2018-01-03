@@ -1342,8 +1342,10 @@ module Beaker
               begin
                 execute_installer_cmd(master, opts)
               rescue Beaker::Host::CommandFailure => e
-                #The way the master fails to install includes this specific line as of PE 2018.1.x.
-                unless e.message =~ /The operation could not be completed because RBACs database has not been initialized/
+                installer_log_dir = '/var/log/puppetlabs/installer'
+                latest_installer_log_file = on(master, "ls -1t #{installer_log_dir} | head -n1").stdout.chomp
+                #Check the lastest install log to confirm the expected failure is there
+                unless on(master, "grep 'The operation could not be completed because RBACs database has not been initialized' #{installer_log_dir}/#{latest_installer_log_file}")
                   raise "Install on master failed in an unexpected manner"
                 end
               end
