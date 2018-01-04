@@ -1168,6 +1168,59 @@ describe ClassMixedWithDSLInstallUtils do
       expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.not_to raise_error
     end
 
+    it 'will rescue out of the error and complete the installation' do
+      allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
+      allow(subject).to receive(:master).and_return(mono_master)
+      allow(subject).to receive(:database).and_return(mono_master)
+      allow(subject).to receive(:dashboard).and_return(mono_master)
+      allow(subject).to receive(:pe_postgres).and_return(pe_postgres)
+
+      allow(subject).to receive(:original_pe_ver).and_return('2017.2')
+      allow(subject).to receive(:prepare_host_installer_options).exactly(2).times
+      allow(subject).to receive(:setup_pe_conf).exactly(2).times
+
+      #installer command on master is called twice on install
+      expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).and_raise(Beaker::Host::CommandFailure).once.ordered
+
+      #Error handling
+      @installer_log_file_name = Beaker::Result.new( {}, '' )
+      @installer_log_file_name.stdout = "installer_log_name"
+      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
+      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name").and_return(true)
+
+      allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
+      expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).once.ordered
+      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).exactly(3).times
+      allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
+
+      allow(subject).to receive(:install_agents_only_on).with([agent], {})
+      allow(subject).to receive(:run_puppet_on_non_infrastructure_nodes).with([agent])
+
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.not_to raise_error
+    end
+
+    it 'will fail install as expected if rescue does not match error message' do
+      allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
+      allow(subject).to receive(:master).and_return(mono_master)
+      allow(subject).to receive(:database).and_return(mono_master)
+      allow(subject).to receive(:dashboard).and_return(mono_master)
+      allow(subject).to receive(:pe_postgres).and_return(pe_postgres)
+
+      allow(subject).to receive(:original_pe_ver).and_return('2017.2')
+      allow(subject).to receive(:prepare_host_installer_options).exactly(2).times
+      allow(subject).to receive(:setup_pe_conf).exactly(2).times
+
+      expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).and_raise(Beaker::Host::CommandFailure).once.ordered
+
+      #Error handling
+      @installer_log_file_name = Beaker::Result.new( {}, '' )
+      @installer_log_file_name.stdout = "installer_log_name"
+      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
+      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name").and_return(false)
+
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.to raise_error(RuntimeError, "Install on master failed in an unexpected manner")
+    end
+
     it 'will do a monolithic upgrade of PE with an external postgres that is managed by PE' do
       allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
       allow(subject).to receive(:master).and_return(mono_master)
