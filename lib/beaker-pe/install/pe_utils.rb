@@ -480,6 +480,9 @@ module Beaker
         def do_install hosts, opts = {}
           # detect the kind of install we're doing
           install_type = determine_install_type(hosts, opts)
+          if opts[:use_proxy]
+            config_master_for_proxy_access
+          end
           case install_type
           when :pe_managed_postgres
             do_install_pe_with_pe_managed_external_postgres(hosts,opts)
@@ -577,6 +580,40 @@ module Beaker
             on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
           end
         end
+
+
+        # Configure the master to use a proxy and drop unproxied connections
+        def config_master_for_proxy_access
+          step "configuring master to use proxy" do
+            @osmirror_host = "osmirror.delivery.puppetlabs.net"
+            @osmirror_host_ip = IPSocket.getaddress(@osmirror_host)
+            @delivery_host = "enterprise.delivery.puppetlabs.net"
+            @delivery_host_ip = IPSocket.getaddress(@delivery_host)
+            @proxy_ip = @options[:proxy_ip]
+            @proxy_hostname = @options[:proxy_hostname]
+            @master_ip = on master, "hostname -I | tr '\n' ' '"
+            on master, "echo \"#{@proxy_ip}  #{@proxy_hostname}\" >> /etc/hosts"
+            on master, "echo \"#{@master_ip.stdout}  #{master.connection.vmhostname}\" >> /etc/hosts"
+            on master, "echo \"#{@osmirror_host_ip}    #{@osmirror_host}\" >> /etc/hosts"
+            on master, "echo \"#{@delivery_host_ip}    #{@delivery_host}\" >> /etc/hosts"
+            on master, "iptables -A OUTPUT -p tcp -d #{master.connection.vmhostname} -j ACCEPT"
+            # internal puppet lan
+            on master, "iptables -A OUTPUT -p tcp -d 10.32.0.0/16 -j ACCEPT"
+            on master, "iptables -A OUTPUT -p tcp --dport 3128 -d #{@proxy_hostname} -j ACCEPT"
+            on master, "iptables -A OUTPUT -p tcp -d #{@osmirror_host_ip} -j DROP"
+            on master, "iptables -A OUTPUT -p tcp -d #{@delivery_host_ip} -j DROP"
+            on master, "iptables -P OUTPUT DROP"
+            on master, "curl --proxy #{@proxy_hostname}:3128 http://#{@osmirror_host}", :acceptable_exit_codes => [0]
+            on master, "curl -k https://#{@osmirror_host}", :acceptable_exit_codes => [1,7]
+            if master.host_hash[:platform].include?("ubuntu")
+              on master, "echo 'Acquire::http::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
+              on master, "echo 'Acquire::https::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
+            else
+              on master, "echo \"proxy=http://#{@proxy_hostname}:3128\" >> /etc/yum.conf"
+            end
+          end
+        end
+
 
         def generic_install hosts, opts = {}
           step "Installing PE on a generic set of hosts"
