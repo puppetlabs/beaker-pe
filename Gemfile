@@ -18,7 +18,7 @@ group :acceptance_testing do
   gem "beaker", *location_for(ENV['BEAKER_VERSION'] || '~> 3.0')
 end
 
-if ENV['GEM_SOURCE'] =~ /rubygems\.delivery\.puppetlabs\.net/
+if ENV['GEM_SOURCE'] =~ /artifactory\.delivery\.puppetlabs\.net/
   gem "scooter", *location_for(ENV['SCOOTER_VERSION'] || '~> 3.0')
 end
 

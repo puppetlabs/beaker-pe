@@ -39,7 +39,7 @@ things:
 
 # Gem Installing
 Spec tests require a version of scooter that is private. Execute
-`export GEM_SOURCE=http://rubygems.delivery.puppetlabs.net` prior to running
+`export GEM_SOURCE=https://artifactory.delivery.puppetlabs.net/artifactory/api/gems/rubygems/` prior to running
 `bundle install --path .bundle/gems/`.
 
 # Spec Testing
