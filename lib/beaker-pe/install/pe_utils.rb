@@ -597,7 +597,8 @@ module Beaker
             on master, "echo \"#{@osmirror_host_ip}    #{@osmirror_host}\" >> /etc/hosts"
             on master, "echo \"#{@delivery_host_ip}    #{@delivery_host}\" >> /etc/hosts"
             on master, "iptables -A OUTPUT -p tcp -d #{master.connection.vmhostname} -j ACCEPT"
-            # internal puppet lan
+            # the next two lines clear the internal puppet lan
+            on master, "iptables -A OUTPUT -p tcp -d 10.16.0.0/16 -j ACCEPT"
             on master, "iptables -A OUTPUT -p tcp -d 10.32.0.0/16 -j ACCEPT"
             on master, "iptables -A OUTPUT -p tcp --dport 3128 -d #{@proxy_hostname} -j ACCEPT"
             on master, "iptables -A OUTPUT -p tcp -d #{@osmirror_host_ip} -j DROP"
