@@ -569,12 +569,15 @@ module Beaker
             on master, installer_cmd(master, opts)
           end
 
-          install_agents_only_on(agents, opts)
+          step "Stop agent on master" do
+            stop_agent_on(master)
+          end
 
           step "Run puppet to setup mcollective and pxp-agent" do
             on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
-            run_puppet_on_non_infrastructure_nodes(all_hosts)
           end
+
+          install_agents_only_on(agents, opts)
 
           step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
             on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
