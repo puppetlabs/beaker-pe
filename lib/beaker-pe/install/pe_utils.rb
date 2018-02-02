@@ -448,6 +448,39 @@ module Beaker
           end
         end
 
+        # Check for availability of required network resources
+        # @param [Array<Host>] hosts
+        # @param [Array<String>] network_resources
+        #
+        # @example
+        #   verify_network_resources(hosts, network_resources)
+        #
+        # @return nil
+        #
+        # @api private
+        def verify_network_resources(hosts, network_resources)
+          logger.notify("Checking the availability of network resources.")
+          hosts.each do |host|
+            # if options[:net_diag_hosts] isn't set, skip this check
+            if network_resources != nil
+              network_resources.each do |resource|
+                # curl the network resource silently (-s), only connect (-I), and don't print the output
+                on host, "curl -I -s #{resource} > /dev/null", :accept_all_exit_codes => true
+                if host.connection.logger.last_result.exit_code != 0
+                  logger.warn("Connection error: #{host.host_hash[:vmhostname]} was unable to connect to #{resource}. Please ensure that your test does not require this resource.")
+                end
+              end
+            end
+            hosts.each do |target_host|
+              ping_opts = host['platform'] =~ /windows/ ? "-n 1" : "-c1"
+              on host, "ping #{ping_opts} #{target_host.host_hash[:vmhostname]} > /dev/null", :accept_all_exit_codes => true
+              if host.connection.logger.last_result.exit_code != 0
+                logger.warn("Connection error: #{host.host_hash[:vmhostname]} was unable to connect to #{target_host.host_hash[:vmhostname]} in your testing infrastructure.")
+              end
+            end
+          end
+        end
+
         #Perform a Puppet Enterprise upgrade or install
         # @param [Array<Host>] hosts The hosts to install or upgrade PE on
         # @param  [Hash{Symbol=>Symbol, String}] opts The options
@@ -480,6 +513,7 @@ module Beaker
         def do_install hosts, opts = {}
           # detect the kind of install we're doing
           install_type = determine_install_type(hosts, opts)
+          verify_network_resources(hosts, options[:net_diag_hosts])
           if opts[:use_proxy]
             config_master_for_proxy_access
           end
