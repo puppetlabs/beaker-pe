@@ -10,7 +10,7 @@ class ClassMixedWithDSLInstallUtils
   include Beaker::DSL::Patterns
   include Beaker::DSL::PE
 
-  attr_accessor :hosts, :metadata, :options
+  attr_accessor :hosts, :metadata, :options, :logger
 
   def initialize
     @metadata = {}
@@ -21,10 +21,6 @@ class ClassMixedWithDSLInstallUtils
   # mock out `metadata` that is initialized in a test case.
   def metadata
     @metadata ||= {}
-  end
-
-  def logger
-    @logger ||= RSpec::Mocks::Double.new('logger').as_null_object
   end
 end
 
@@ -70,6 +66,16 @@ describe ClassMixedWithDSLInstallUtils do
                         lei_hosts[3][:roles] = ['frictionless', 'lb_connect']
                         lei_hosts[3][:working_dir] = '/tmp'
                         lei_hosts }
+
+  let(:logger) do
+    logger = double('logger').as_null_object
+    allow(logger).to receive(:with_indent).and_yield
+    logger
+  end
+
+  before(:each) do
+    subject.logger = logger
+  end
 
   context '#prep_host_for_upgrade' do
 
