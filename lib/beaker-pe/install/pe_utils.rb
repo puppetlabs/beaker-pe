@@ -564,7 +564,7 @@ module Beaker
           prepare_hosts(all_hosts, opts)
           fetch_pe([master], opts)
           prepare_host_installer_options(master)
-          generate_installer_conf_file_for(master, [master], opts)
+          generate_installer_conf_file_for(master, all_hosts, opts)
           step "Install PE on master" do
             on master, installer_cmd(master, opts)
           end
