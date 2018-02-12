@@ -1379,6 +1379,7 @@ describe ClassMixedWithDSLInstallUtils do
     end
 
     it 'can perform a simple installation' do
+      allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
       allow( subject ).to receive( :fetch_pe ).and_return( true )
       allow( subject ).to receive( :create_remote_file ).and_return( true )
@@ -1451,6 +1452,7 @@ describe ClassMixedWithDSLInstallUtils do
       }, 1)
       opts[:masterless] = true
 
+      allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       allow( subject ).to receive( :hosts ).and_return( hosts )
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
       allow( subject ).to receive( :fetch_pe ).and_return( true )
@@ -1484,6 +1486,7 @@ describe ClassMixedWithDSLInstallUtils do
       hosts[2][:pe_promoted_builds_url] = nil
       hosts[3][:pe_promoted_builds_url] = 'test-url'
 
+      allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       allow( subject ).to receive( :hosts ).and_return( hosts )
       allow( subject ).to receive( :options ).and_return(Beaker::Options::Presets.new.presets)
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
@@ -1568,6 +1571,7 @@ describe ClassMixedWithDSLInstallUtils do
       hosts[2][:platform] = Beaker::Platform.new('el-6-x86_64')
       hosts[2][:pe_ver]   = '3.8'
 
+      allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       pa_version = 'rarified_air_1675'
       allow( subject ).to receive( :get_puppet_agent_version ).and_return( pa_version )
 
@@ -1638,6 +1642,7 @@ describe ClassMixedWithDSLInstallUtils do
         opts[:HOSTS][host.name] = host
       end
 
+      allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       pa_version = 'rarified_air_75699'
       allow( subject ).to receive( :get_puppet_agent_version ).and_return( pa_version )
 
