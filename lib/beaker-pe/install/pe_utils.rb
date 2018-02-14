@@ -148,6 +148,13 @@ module Beaker
             end
           end
 
+          # pe_repo also supports flags that will determine what happens during the frictionless install
+          # Current support in beaker-pe is for:
+          # --puppet-service-debug, when running puppet service enable, the debug flag is passed into puppt service
+          if host[:puppet_service_debug_flag] == true
+            frictionless_install_opts << '--puppet-service-debug'
+          end
+
           # If this is an agent node configured to connect to the loadbalancer
           # using 'lb_connect' role, then use loadbalancer in the download url
           # instead of master

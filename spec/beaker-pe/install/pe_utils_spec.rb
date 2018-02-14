@@ -314,6 +314,18 @@ describe ClassMixedWithDSLInstallUtils do
 
       expect( subject.frictionless_agent_installer_cmd( lb_test_hosts[3], {}, '2016.4.0' ) ).to eq(expecting)
     end
+
+    it 'generates a unix PE frictionless install command with the puppet service debug flag' do
+      host[:puppet_service_debug_flag] = true
+      expecting = [
+        "FRICTIONLESS_TRACE='true'",
+        "export FRICTIONLESS_TRACE",
+        "cd /tmp && curl --tlsv1 -O -k https://testmaster:8140/packages/current/install.bash && bash install.bash --puppet-service-debug"
+      ].join("; ")
+
+      expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
+    end
+
   end
 
   describe 'install_ca_cert_on' do
