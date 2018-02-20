@@ -148,10 +148,10 @@ module Beaker
             end
           end
 
-          # pe_repo also supports flags that will determine what happens during the frictionless install
+          # PE 2018.1.0 introduced a pe_repo flag that will determine what happens during the frictionless install
           # Current support in beaker-pe is for:
           # --puppet-service-debug, when running puppet service enable, the debug flag is passed into puppt service
-          if host[:puppet_service_debug_flag] == true
+          if (host[:puppet_service_debug_flag] == true and ! version_is_less(pe_version, '2018.1.0'))
             frictionless_install_opts << '--puppet-service-debug'
           end
 
