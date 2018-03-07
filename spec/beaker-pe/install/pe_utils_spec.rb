@@ -1213,8 +1213,10 @@ describe ClassMixedWithDSLInstallUtils do
       #Error handling
       @installer_log_file_name = Beaker::Result.new( {}, '' )
       @installer_log_file_name.stdout = "installer_log_name"
+      exit_code_mock = Object.new
+      allow(exit_code_mock).to receive(:exit_code).and_return( 0 )
       allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name").and_return(true)
+      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(exit_code_mock)
 
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
       expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).once.ordered
@@ -1243,8 +1245,10 @@ describe ClassMixedWithDSLInstallUtils do
       #Error handling
       @installer_log_file_name = Beaker::Result.new( {}, '' )
       @installer_log_file_name.stdout = "installer_log_name"
+      exit_code_mock = Object.new
+      allow(exit_code_mock).to receive(:exit_code).and_return(1)
       allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name").and_return(false)
+      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(exit_code_mock)
 
       expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.to raise_error(RuntimeError, "Install on master failed in an unexpected manner")
     end
