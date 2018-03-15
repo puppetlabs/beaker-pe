@@ -1427,7 +1427,7 @@ module Beaker
                 installer_log_dir = '/var/log/puppetlabs/installer'
                 latest_installer_log_file = on(master, "ls -1t #{installer_log_dir} | head -n1").stdout.chomp
                 #Check the lastest install log to confirm the expected failure is there
-                unless on(master, "grep 'The operation could not be completed because RBACs database has not been initialized' #{installer_log_dir}/#{latest_installer_log_file}")
+                unless on(master, "grep 'The operation could not be completed because RBACs database has not been initialized' #{installer_log_dir}/#{latest_installer_log_file}", :acceptable_exit_codes => [0,1]).exit_code == 0
                   raise "Install on master failed in an unexpected manner"
                 end
               end
