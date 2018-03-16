@@ -409,7 +409,14 @@ module Beaker
               klass = "pe_repo::platform::windows_x86_64"
             end
           else
-            klass = "pe_repo::platform::#{klass}"
+            # Redhat FIPS is an awkward special case we need to check for
+            # where the platform is el-7 but the packaging_platform is
+            # redhat-fips-7:
+            if host['packaging_platform'] == "redhat-fips-7-x86_64"
+              klass = "pe_repo::platform::redhatfips_7_x86_64"
+            else
+              klass = "pe_repo::platform::#{klass}"
+            end
           end
           if version_is_less(host['pe_ver'], '3.8')
             # use the old rake tasks
