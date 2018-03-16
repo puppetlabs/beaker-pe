@@ -394,7 +394,9 @@ module Beaker
         def deploy_frictionless_to_master(host)
           return if use_meep_for_classification?(master[:pe_ver], options)
 
-          platform = host['platform']
+          # For some platforms (e.g, redhatfips), packaging_platfrom is set and should
+          # be used as the primary source of truth for the platform string.
+          platform = host['packaging_platform'] || host['platform']
 
           # We don't have a separate AIX 7.2 build, so it is
           # classified as 7.1 for pe_repo purposes
