@@ -1164,6 +1164,47 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'is_expected_pe_postgres_failure? method' do
+    let(:mono_master) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
+
+    it 'will return true if it is the RBAC database string matcher' do
+      @installer_log_file_name = Beaker::Result.new( {}, '' )
+      @installer_log_file_name.stdout = "installer_log_name"
+      zero_exit_code_mock = Object.new
+      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
+      one_exit_code_mock = Object.new
+      allow(one_exit_code_mock).to receive(:exit_code).and_return(1)
+      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
+      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
+      allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
+    end
+
+    it 'will return true if it is the database pool timeout string matcher' do
+      @installer_log_file_name = Beaker::Result.new( {}, '' )
+      @installer_log_file_name.stdout = "installer_log_name"
+      zero_exit_code_mock = Object.new
+      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
+      one_exit_code_mock = Object.new
+      allow(one_exit_code_mock).to receive(:exit_code).and_return(1)
+      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
+      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
+      expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
+    end
+
+    it 'will return false if no error messages are matched' do
+      @installer_log_file_name = Beaker::Result.new( {}, '' )
+      @installer_log_file_name.stdout = "installer_log_name"
+      one_exit_code_mock = Object.new
+      allow(one_exit_code_mock).to receive(:exit_code).and_return(1)
+      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
+      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(false)
+    end
+  end
+
   describe 'do_install_pe_with_pe_managed_external_postgres with an agent' do
     let(:mono_master) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
     let(:pe_postgres) { make_host('pe_postgres', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['pe_postgres', 'agent']) }
@@ -1210,14 +1251,7 @@ describe ClassMixedWithDSLInstallUtils do
       #installer command on master is called twice on install
       expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).and_raise(Beaker::Host::CommandFailure).once.ordered
 
-      #Error handling
-      @installer_log_file_name = Beaker::Result.new( {}, '' )
-      @installer_log_file_name.stdout = "installer_log_name"
-      exit_code_mock = Object.new
-      allow(exit_code_mock).to receive(:exit_code).and_return( 0 )
-      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(exit_code_mock)
-
+      allow(subject).to receive(:is_expected_pe_postgres_failure?).and_return(true)
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
       expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).once.ordered
       allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).exactly(3).times
@@ -1241,14 +1275,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:setup_pe_conf).exactly(2).times
 
       expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).and_raise(Beaker::Host::CommandFailure).once.ordered
-
-      #Error handling
-      @installer_log_file_name = Beaker::Result.new( {}, '' )
-      @installer_log_file_name.stdout = "installer_log_name"
-      exit_code_mock = Object.new
-      allow(exit_code_mock).to receive(:exit_code).and_return(1)
-      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(exit_code_mock)
+      allow(subject).to receive(:is_expected_pe_postgres_failure?).and_return(false)
 
       expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.to raise_error(RuntimeError, "Install on master failed in an unexpected manner")
     end
