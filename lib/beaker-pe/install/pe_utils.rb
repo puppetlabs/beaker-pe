@@ -1424,10 +1424,7 @@ module Beaker
               begin
                 execute_installer_cmd(master, opts)
               rescue Beaker::Host::CommandFailure => e
-                installer_log_dir = '/var/log/puppetlabs/installer'
-                latest_installer_log_file = on(master, "ls -1t #{installer_log_dir} | head -n1").stdout.chomp
-                #Check the lastest install log to confirm the expected failure is there
-                unless on(master, "grep 'The operation could not be completed because RBACs database has not been initialized' #{installer_log_dir}/#{latest_installer_log_file}", :acceptable_exit_codes => [0,1]).exit_code == 0
+                unless is_expected_pe_postgres_failure?(master)
                   raise "Install on master failed in an unexpected manner"
                 end
               end
@@ -1462,6 +1459,23 @@ module Beaker
               on master, 'puppet agent -t', :acceptable_exit_codes => [0,2]
             end
           end
+        end
+
+        #Check the lastest install log to confirm the expected failure is there
+        def is_expected_pe_postgres_failure?(host)
+          installer_log_dir = '/var/log/puppetlabs/installer'
+          latest_installer_log_file = on(host, "ls -1t #{installer_log_dir} | head -n1").stdout.chomp
+          # As of PE Irving (PE 2018.1.x), these are the only two expected errors
+          allowed_errors = ["The operation could not be completed because RBACs database has not been initialized",
+            "Timeout waiting for the database pool to become ready"]
+
+          allowed_errors.each do |error|
+            if(on(host, "grep '#{error}' #{installer_log_dir}/#{latest_installer_log_file}", :acceptable_exit_codes => [0,1]).exit_code == 0)
+              return true
+            end
+          end
+
+          false
         end
 
         # Grabs the pe file from a remote host to the machine running Beaker, then
