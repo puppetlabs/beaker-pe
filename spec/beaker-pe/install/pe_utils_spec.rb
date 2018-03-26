@@ -689,6 +689,14 @@ describe ClassMixedWithDSLInstallUtils do
     include_examples('test flag', 'meep_classification')
   end
 
+  describe 'manage_puppet_service?' do
+    let(:old_behavior_version) { '2017.3.0' }
+    let(:threshold_version) { '2018.1.0' }
+    let(:method) { 'manage_puppet_service?' }
+
+    include_examples('test flag', 'pe_modules_next')
+  end
+
   describe 'generate_installer_conf_file_for' do
     let(:master) { hosts.first }
 
@@ -2309,7 +2317,7 @@ describe ClassMixedWithDSLInstallUtils do
   end
 
   describe 'configure_puppet_agent_service' do
-    let(:pe_version) { '2017.1.0' }
+    let(:pe_version) { '2018.1.0' }
     let(:master) { hosts[0] }
 
     before(:each) do
@@ -2321,17 +2329,17 @@ describe ClassMixedWithDSLInstallUtils do
       expect { subject.configure_puppet_agent_service }.to raise_error(ArgumentError, /wrong number/)
     end
 
-    context 'master prior to 2017.1.0' do
+    context 'master prior to 2018.1.0' do
       let(:pe_version) { '2016.5.1' }
 
       it 'raises an exception about version' do
         expect { subject.configure_puppet_agent_service({}) }.to(
-          raise_error(StandardError, /Can only manage.*2017.1.0; tried.* 2016.5.1/)
+          raise_error(StandardError, /Can only manage.*2018.1.0; tried.* 2016.5.1/)
         )
       end
     end
 
-    context '2017.1.0 master' do
+    context '2018.1.0 master' do
       let(:pe_conf_path) { '/etc/puppetlabs/enterprise/conf.d/pe.conf' }
       let(:pe_conf) do
         <<-EOF
@@ -2345,18 +2353,13 @@ describe ClassMixedWithDSLInstallUtils do
 "node_roles": {
   "pe_role::monolithic::primary_master": ["#{master.name}"],
 }
-"pe_infrastructure::agent::puppet_service_managed": true
-"pe_infrastructure::agent::puppet_service_ensure": "stopped"
-"pe_infrastructure::agent::puppet_service_enabled": false
+"puppet_enterprise::profile::agent::puppet_service_managed": true
+"puppet_enterprise::profile::agent::puppet_service_ensure": "stopped"
+"puppet_enterprise::profile::agent::puppet_service_enabled": false
         EOF
       end
 
       it "modifies the agent puppet service settings in pe.conf" do
-        # mock hitting the console
-        dispatcher = double('dispatcher').as_null_object
-        expect(subject).to receive(:get_console_dispatcher_for_beaker_pe)
-          .and_return(dispatcher)
-
         assert_meep_conf_edit(pe_conf, gold_pe_conf, pe_conf_path) do
           subject.configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
         end

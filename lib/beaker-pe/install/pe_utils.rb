@@ -34,6 +34,9 @@ module Beaker
         # PE-18718 switch flag to true once beaker-pe, beaker-answers,
         # beaker-pe-large-environments and pe_acceptance_tests are ready
         DEFAULT_MEEP_CLASSIFICATION = false
+        # Version of PE in which PE is managing the agent service
+        MANAGE_PUPPET_SERVICE_VERSION = '2018.1.0'
+
         MEEP_DATA_DIR = '/etc/puppetlabs/enterprise'
         PE_CONF_FILE = "#{MEEP_DATA_DIR}/conf.d/pe.conf"
         NODE_CONF_PATH = "#{MEEP_DATA_DIR}/conf.d/nodes"
@@ -614,6 +617,10 @@ module Beaker
             stop_agent_on(master)
           end
 
+          if manage_puppet_service?(master[:pe_ver], options)
+            configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
+          end
+
           step "Run puppet to setup mcollective and pxp-agent" do
             on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
           end
@@ -812,8 +819,7 @@ module Beaker
               on dashboard, "/opt/puppet/bin/rake -sf /opt/puppet/share/puppet-dashboard/Rakefile #{task} RAILS_ENV=production"
             end
 
-            # PE-18799 replace the version_is_less with a use_meep_for_classification? test
-            if use_meep_for_classification?(master[:pe_ver], options)
+            if manage_puppet_service?(master[:pe_ver], options)
               configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
             end
 
@@ -953,6 +959,26 @@ module Beaker
           pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'dashboard', 'database']}, all_hosts)
           non_infrastructure = all_hosts.reject{|host| pe_infrastructure.include? host}
           on non_infrastructure, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
+        end
+
+        # Whether or not PE should be managing the puppet service on agents.
+        # Puppet code to manage the puppet service was added to the next branches
+        # and is slated to be merged into 2018.1.x
+        #
+        # Returns true if the version we are managing is greater than or equal to
+        # MANAGE_PUPPET_SERVICE_VERSION.
+        #
+        # Temporarily, (until merged from 'next' branches into 2018.1.x), also checks
+        # the pe_modules_next flag to know whether or not the code for managing puppet
+        # service is present.
+        def manage_puppet_service?(version, opts)
+          # PE-23651 remove vv
+          register_feature_flags!(opts)
+
+          temporary_flag = !!feature_flag?('pe_modules_next', opts)
+          # ^^
+
+          !version_is_less(version, MANAGE_PUPPET_SERVICE_VERSION) && temporary_flag
         end
 
         # True if version is greater than or equal to MEEP_CLASSIFICATION_VERSION
@@ -1511,7 +1537,7 @@ module Beaker
           get_console_dispatcher_for_beaker_pe(true)
         end
 
-        # In PE versions >= 2017.1.0, allows you to configure the puppet agent
+        # In PE versions >= 2018.1.0, allows you to configure the puppet agent
         # service for all nodes.
         #
         # @param parameters [Hash] - agent profile parameters
@@ -1522,7 +1548,7 @@ module Beaker
         #   enabled (for restarts)
         # @raise [StandardError] if master version is less than 2017.1.0
         def configure_puppet_agent_service(parameters)
-          raise(StandardError, "Can only manage puppet service in PE versions >= 2017.1.0; tried for #{master['pe_ver']}") if version_is_less(master['pe_ver'], '2017.1.0')
+          raise(StandardError, "Can only manage puppet service in PE versions >= #{MANAGE_PUPPET_SERVICE_VERSION}; tried for #{master['pe_ver']}") if version_is_less(master['pe_ver'], MANAGE_PUPPET_SERVICE_VERSION)
           puppet_managed = parameters.include?(:managed) ? parameters[:managed] : true
           puppet_ensure = parameters[:ensure]
           puppet_enabled = parameters[:enabled]
@@ -1534,30 +1560,17 @@ module Beaker
           step msg do
             # PE-18799 and remove this conditional
             if use_meep_for_classification?(master[:pe_ver], options)
-              group_name = 'Puppet Enterprise Agent'
               class_name = 'pe_infrastructure::agent'
             else
-              group_name = 'PE Agent'
               class_name = 'puppet_enterprise::profile::agent'
             end
 
             # update pe conf
-            # only the pe_infrastructure::agent parameters are relevant in pe.conf
             update_pe_conf({
-              "pe_infrastructure::agent::puppet_service_managed" => puppet_managed,
-              "pe_infrastructure::agent::puppet_service_ensure" => puppet_ensure,
-              "pe_infrastructure::agent::puppet_service_enabled" => puppet_enabled,
+              "#{class_name}::puppet_service_managed" => puppet_managed,
+              "#{class_name}::puppet_service_ensure" => puppet_ensure,
+              "#{class_name}::puppet_service_enabled" => puppet_enabled,
             })
-
-            if _console_dispatcher = get_console_dispatcher_for_beaker_pe
-              agent_group = _console_dispatcher.get_node_group_by_name(group_name)
-              agent_class = agent_group['classes'][class_name]
-              agent_class['puppet_service_managed'] = puppet_managed
-              agent_class['puppet_service_ensure'] = puppet_ensure
-              agent_class['puppet_service_enabled'] = puppet_enabled
-
-              _console_dispatcher.update_node_group(agent_group['id'], agent_group)
-            end
           end
         end
 
