@@ -28,7 +28,7 @@ module Beaker
         MEEP_CUTOVER_VERSION = '2016.2.0'
         # Version of PE when we switched to using meep for classification
         # instead of PE node groups
-        MEEP_CLASSIFICATION_VERSION = '2017.2.0'
+        MEEP_CLASSIFICATION_VERSION = '2018.2.0'
         # PE-18799 temporary default used for meep classification check while
         # we navigate the switchover.
         # PE-18718 switch flag to true once beaker-pe, beaker-answers,
@@ -958,10 +958,10 @@ module Beaker
         # True if version is greater than or equal to MEEP_CLASSIFICATION_VERSION
         # (PE-18718) AND the temporary feature flag is true.
         #
-        # The temporary feature flag is pe_modules_next and can be set in
+        # The temporary feature flag is meep_classification and can be set in
         # the :answers hash given in beaker's host.cfg, inside a feature_flags
         # hash. It will also be picked up from the environment as
-        # PE_MODULES_NEXT. (See register_feature_flags!())
+        # MEEP_CLASSIFICATION. (See register_feature_flags!())
         #
         # The :answers hash value will take precedence over the env variable.
         #
@@ -973,7 +973,7 @@ module Beaker
           # PE-19470 remove vv
           register_feature_flags!(opts)
 
-          temporary_flag = feature_flag?('pe_modules_next', opts)
+          temporary_flag = feature_flag?('meep_classification', opts)
           temporary_flag = DEFAULT_MEEP_CLASSIFICATION if temporary_flag.nil?
           # ^^
 
@@ -1039,8 +1039,13 @@ module Beaker
 
           modified_opts = opts.merge(beaker_answers_opts)
 
-          if feature_flag?('pe_modules_next', opts) && !modified_opts.include?(:meep_schema_version)
-            modified_opts[:meep_schema_version] = '2.0'
+          answers_hash = modified_opts[:answers] ||= {}
+          if !answers_hash.include?(:meep_schema_version)
+            if feature_flag?(:meep_classification, opts)
+              answers_hash[:meep_schema_version] = '2.0'
+            elsif use_meep?(host['pe_ver'])
+              answers_hash[:meep_schema_version] = '1.0'
+            end
           end
 
           modified_opts

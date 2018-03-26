@@ -20,7 +20,7 @@ module Beaker::DSL::InstallUtils
   #     }
   #   }
   #
-  # All flag keys are expected to be downcased with hyphens.
+  # All flag keys are expected to be downcased with underscores.
   #
   # Environment variables may be uppercased.
   class FeatureFlags

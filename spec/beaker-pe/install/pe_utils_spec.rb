@@ -605,14 +605,14 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
-  describe 'use_meep_for_classification?' do
+  RSpec.shared_examples 'test flag' do |flag_name|
     let(:feature_flag) { nil }
     let(:environment_feature_flag) { nil }
     let(:answers) do
       {
         :answers => {
           'feature_flags' => {
-            'pe_modules_next' => feature_flag,
+            flag_name => feature_flag,
           },
         },
       }
@@ -627,58 +627,66 @@ describe ClassMixedWithDSLInstallUtils do
     before(:each) do
       subject.options = options
       if !environment_feature_flag.nil?
-        ENV['PE_MODULES_NEXT'] = environment_feature_flag
+        ENV[flag_name.upcase] = environment_feature_flag
       end
     end
 
     after(:each) do
-      ENV.delete('PE_MODULES_NEXT')
+      ENV.delete(flag_name.upcase)
     end
 
-    it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
-    it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+    it { expect(subject.send(method, old_behavior_version, options)).to eq(false) }
+    it { expect(subject.send(method, threshold_version, options)).to eq(false) }
 
     context 'feature flag false' do
       let(:feature_flag) { false }
 
-      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
-      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+      it { expect(subject.send(method, old_behavior_version, options)).to eq(false) }
+      it { expect(subject.send(method, threshold_version, options)).to eq(false) }
     end
 
     context 'feature flag true' do
       let(:feature_flag) { true }
 
-      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
-      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
+      it { expect(subject.send(method, old_behavior_version, options)).to eq(false) }
+      it { expect(subject.send(method, threshold_version, options)).to eq(true) }
     end
 
     context 'environment feature flag true' do
       let(:environment_feature_flag) { 'true' }
 
-      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
-      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
+      it { expect(subject.send(method, old_behavior_version, options)).to eq(false) }
+      it { expect(subject.send(method, threshold_version, options)).to eq(true) }
 
       context 'answers feature flag false' do
         let(:feature_flag) { false }
 
-        it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
-        it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+        it { expect(subject.send(method, old_behavior_version, options)).to eq(false) }
+        it { expect(subject.send(method, threshold_version, options)).to eq(false) }
       end
     end
 
     context 'environment feature flag false' do
       let(:environment_feature_flag) { 'false' }
 
-      it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
-      it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(false) }
+      it { expect(subject.send(method, old_behavior_version, options)).to eq(false) }
+      it { expect(subject.send(method, threshold_version, options)).to eq(false) }
 
       context 'answers feature flag true' do
         let(:feature_flag) { true }
 
-        it { expect(subject.use_meep_for_classification?('2017.1.0', options)).to eq(false) }
-        it { expect(subject.use_meep_for_classification?('2017.2.0', options)).to eq(true) }
+        it { expect(subject.send(method, old_behavior_version, options)).to eq(false) }
+        it { expect(subject.send(method, threshold_version, options)).to eq(true) }
       end
     end
+  end
+
+  describe 'use_meep_for_classification?' do
+    let(:old_behavior_version) { '2018.1.0' }
+    let(:threshold_version) { '2018.2.0' }
+    let(:method) { 'use_meep_for_classification?' }
+
+    include_examples('test flag', 'meep_classification')
   end
 
   describe 'generate_installer_conf_file_for' do
@@ -814,6 +822,7 @@ describe ClassMixedWithDSLInstallUtils do
           opts.merge(
             :format => :bash,
             :include_legacy_database_defaults => false,
+            :answers => {},
           )
         )
       end
@@ -829,6 +838,7 @@ describe ClassMixedWithDSLInstallUtils do
           opts.merge(
             :format => :hiera,
             :include_legacy_database_defaults => false,
+            :answers => { :meep_schema_version => '1.0' },
           )
         )
       end
@@ -844,12 +854,44 @@ describe ClassMixedWithDSLInstallUtils do
           )
         end
 
-        it 'adds meep_schema_version' do
+        it 'sets meep_schema_version 1.0' do
           expect(subject.setup_beaker_answers_opts(host, options)).to eq(
             options.merge(
               :format => :hiera,
               :include_legacy_database_defaults => false,
-              :meep_schema_version => '2.0',
+              :answers => {
+                :feature_flags => {
+                  :pe_modules_next => true
+                },
+                :meep_schema_version => '1.0',
+              }
+            )
+          )
+        end
+      end
+
+      context 'with meep-classification' do
+        let(:options) do
+          opts.merge(
+            :answers => {
+              :feature_flags => {
+                :meep_classification => true
+              }
+            }
+          )
+        end
+
+        it 'adds meep_schema_version 2.0' do
+          expect(subject.setup_beaker_answers_opts(host, options)).to eq(
+            options.merge(
+              :format => :hiera,
+              :include_legacy_database_defaults => false,
+              :answers => {
+                :feature_flags => {
+                  :meep_classification => true
+                },
+                :meep_schema_version => '2.0',
+              }
             )
           )
         end
@@ -866,6 +908,9 @@ describe ClassMixedWithDSLInstallUtils do
               opts.merge(
                 :format => :hiera,
                 :include_legacy_database_defaults => false,
+                :answers => {
+                  :meep_schema_version => '1.0',
+                }
               )
             )
           end
@@ -878,6 +923,9 @@ describe ClassMixedWithDSLInstallUtils do
               opts.merge(
                 :format => :hiera,
                 :include_legacy_database_defaults => true,
+                :answers => {
+                  :meep_schema_version => '1.0',
+                }
               )
             )
           end
