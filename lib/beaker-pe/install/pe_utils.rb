@@ -1638,6 +1638,20 @@ module Beaker
           end
         end
 
+        # Sync pe.conf from the master to another infrastructure node.
+        # Useful when updating pe.conf to reconfigure infrastructure, where
+        # you first update_pe_conf then sync_pe_conf to infrastructure hosts.
+        #
+        # @param [Host] host The host to sync to
+        # @param pe_conf_file [String] The file to sync
+        #   (/etc/puppetlabs/enterprise/conf.d/pe.conf by default)
+        def sync_pe_conf(host, pe_conf_file = PE_CONF_FILE)
+          Dir.mktmpdir('sync_pe_conf') do |tmpdir|
+            scp_from(master, pe_conf_file, tmpdir)
+            scp_to(host, File.join(tmpdir, File.basename(pe_conf_file)), pe_conf_file)
+          end
+        end
+
         # If the key is unquoted and does not contain pathing ('.'),
         # quote to ensure that puppet namespaces are protected
         #
