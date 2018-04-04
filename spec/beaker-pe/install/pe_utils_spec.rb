@@ -707,6 +707,7 @@ describe ClassMixedWithDSLInstallUtils do
         '/tmp/answers',
         %r{q_install=y.*q_puppetmaster_certname=#{master}}m
       )
+      expect(subject).to receive(:get_mco_setting).and_return({})
       subject.generate_installer_conf_file_for(master, hosts, opts)
     end
 
@@ -718,6 +719,7 @@ describe ClassMixedWithDSLInstallUtils do
         '/tmp/pe.conf',
         %r{\{.*"puppet_enterprise::puppet_master_host": "#{master.hostname}"}m
       )
+      expect(subject).to receive(:get_mco_setting).and_return({})
       subject.generate_installer_conf_file_for(master, hosts, opts)
     end
   end
@@ -1445,6 +1447,33 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'get_mco_setting' do
+    let(:master) { make_host('master', :pe_ver => '2018.1.0', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
+    let(:hub) { make_host('agent', :pe_ver => '2018.1', :platform => 'el-7-x86_64', :roles => ['frictionless', 'hub', 'agent']) }
+    let(:spoke) { make_host('agent', :pe_ver => '2018.1', :roles => ['frictionless', 'spoke', 'agent']) }
+
+    it 'returns mco enabled with both hub and spoke and version is greater' do
+      hosts = [master, hub, spoke]
+      allow(subject).to receive(:version_is_less).and_return(true)
+      expect(subject.get_mco_setting(hosts)).to eq({:answers => {'pe_install::disable_mco' => false}})
+    end
+    it 'returns mco enabled with just hub and version is greater' do
+      hosts = [master, hub]
+      allow(subject).to receive(:version_is_less).and_return(true)
+      expect(subject.get_mco_setting(hosts)).to eq({:answers => {'pe_install::disable_mco' => false}})
+    end
+    it 'returns mco enabled with just spoke and version is greater' do
+      hosts = [master, spoke]
+      allow(subject).to receive(:version_is_less).and_return(true)
+      expect(subject.get_mco_setting(hosts)).to eq({:answers => {'pe_install::disable_mco' => false}})
+    end
+    it 'does not return anything if the version is less' do
+      hosts = [master, hub, spoke]
+      allow(subject).to receive(:version_is_less).and_return(false)
+      expect(subject.get_mco_setting(hosts)).to eq({})
+    end
+  end
+
   describe '#deploy_frictionless_to_master' do
     let(:master) { make_host('master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
     let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
@@ -1488,6 +1517,7 @@ describe ClassMixedWithDSLInstallUtils do
     end
 
     it 'can perform a simple installation' do
+      expect(subject).to receive(:get_mco_setting).and_return({})
       allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
       allow( subject ).to receive( :fetch_pe ).and_return( true )
@@ -1560,6 +1590,7 @@ describe ClassMixedWithDSLInstallUtils do
         :roles => ['agent']
       }, 1)
       opts[:masterless] = true
+      expect(subject).to receive(:get_mco_setting).and_return({})
 
       allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       allow( subject ).to receive( :hosts ).and_return( hosts )
@@ -1747,6 +1778,7 @@ describe ClassMixedWithDSLInstallUtils do
       hosts[0][:roles] = ['master', 'database', 'dashboard']
       hosts[1][:platform] = Beaker::Platform.new('el-6-x86_64')
       opts[:HOSTS] = {}
+      expect(subject).to receive(:get_mco_setting).and_return({})
       hosts.each do |host|
         opts[:HOSTS][host.name] = host
       end

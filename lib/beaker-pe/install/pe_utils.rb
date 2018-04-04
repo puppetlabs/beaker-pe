@@ -5,6 +5,7 @@ require 'beaker-pe/install/feature_flags'
 require "beaker-answers"
 require "timeout"
 require "json"
+require "deep_merge"
 module Beaker
   module DSL
     module InstallUtils
@@ -1106,6 +1107,16 @@ module Beaker
           Beaker::DSL::InstallUtils::FeatureFlags.new(opts).register_flags!
         end
 
+        # PE 2018.1.0 has mco disabled by default. If we are running hosts with
+        # roles hub or spoke then we intend to test mco. In this case we need
+        # to change a setting in pe.conf to allow mco to be enabled.
+        def get_mco_setting(hosts)
+          if(version_is_less('2018.1', hosts[0]['pe_ver']) && (hosts.any? {|h| h['roles'].include?('hub') || h['roles'].include?('spoke')}))
+            return {:answers => { 'pe_install::disable_mco' => false }}
+          end
+          return {}
+        end
+
         # Generates a Beaker Answers object for the passed *host* and creates
         # the answer or pe.conf configuration file on the *host* needed for
         # installation.
@@ -1119,6 +1130,9 @@ module Beaker
         # @param [Hash] opts The Beaker options hash
         # @return [BeakerAnswers::Answers] the generated answers object
         def generate_installer_conf_file_for(host, hosts, opts)
+          possible_mco_enabled_setting = get_mco_setting(hosts)
+          opts ||= {}
+          opts = possible_mco_enabled_setting.deep_merge(opts)
           beaker_answers_opts = setup_beaker_answers_opts(host, opts)
           answers = BeakerAnswers::Answers.create(
             opts[:pe_ver] || host['pe_ver'], hosts, beaker_answers_opts
