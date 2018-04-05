@@ -1515,7 +1515,9 @@ module Beaker
           latest_installer_log_file = on(host, "ls -1t #{installer_log_dir} | head -n1").stdout.chomp
           # As of PE Irving (PE 2018.1.x), these are the only two expected errors
           allowed_errors = ["The operation could not be completed because RBACs database has not been initialized",
-            "Timeout waiting for the database pool to become ready"]
+            "Timeout waiting for the database pool to become ready",
+            "Systemd restart for pe-console-services failed",
+            "Reloading pe-console-services: Reload timed out after 120 seconds"]
 
           allowed_errors.each do |error|
             if(on(host, "grep '#{error}' #{installer_log_dir}/#{latest_installer_log_file}", :acceptable_exit_codes => [0,1]).exit_code == 0)
