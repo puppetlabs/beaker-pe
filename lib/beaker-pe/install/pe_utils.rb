@@ -1517,7 +1517,7 @@ module Beaker
           allowed_errors = ["The operation could not be completed because RBACs database has not been initialized",
             "Timeout waiting for the database pool to become ready",
             "Systemd restart for pe-console-services failed",
-            "Reloading pe-console-services: Reload timed out after 120 seconds"]
+            "Execution of.*service pe-console-services.*: Reload timed out after 120 seconds"]
 
           allowed_errors.each do |error|
             if(on(host, "grep '#{error}' #{installer_log_dir}/#{latest_installer_log_file}", :acceptable_exit_codes => [0,1]).exit_code == 0)

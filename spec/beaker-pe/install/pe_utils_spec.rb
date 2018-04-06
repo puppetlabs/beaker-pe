@@ -1236,7 +1236,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Reloading pe-console-services: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
     end
 
@@ -1251,7 +1251,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Reloading pe-console-services: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
     end
 
@@ -1266,7 +1266,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Reloading pe-console-services: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
     end
 
@@ -1281,7 +1281,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Reloading pe-console-services: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
+      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
     end
 
@@ -1294,7 +1294,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Reloading pe-console-services: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(false)
     end
   end
