@@ -2513,6 +2513,20 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'sync_pe_conf' do
+    let(:pe_conf_path) { '/etc/puppetlabs/enterprise/conf.d/pe.conf' }
+
+    before(:each) do
+      allow( subject ).to receive( :master ).and_return( 'testmaster' )
+    end
+
+    it "copies pe.conf from master to a host" do
+      expect(subject).to receive(:scp_from).with('testmaster', pe_conf_path, %r{sync_pe_conf})
+      expect(subject).to receive(:scp_to).with('host', %r{sync_pe_conf.*/pe\.conf}, pe_conf_path)
+      subject.sync_pe_conf('host')
+    end
+  end
+
   describe 'create_or_update_node_conf' do
     let(:pe_version) { '2017.1.0' }
     let(:master) { hosts[0] }
