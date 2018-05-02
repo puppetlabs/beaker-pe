@@ -1111,8 +1111,11 @@ module Beaker
         # roles hub or spoke then we intend to test mco. In this case we need
         # to change a setting in pe.conf to allow mco to be enabled.
         def get_mco_setting(hosts)
-          if(version_is_less('2018.1', hosts[0]['pe_ver']) && (hosts.any? {|h| h['roles'].include?('hub') || h['roles'].include?('spoke')}))
-            return {:answers => { 'pe_install::disable_mco' => false }}
+          pe_version = hosts[0]['pe_ver']
+          if (!version_is_less(pe_version, '2018.1') && version_is_less(pe_version, '2018.1.999'))
+                if (hosts.any? {|h| h['roles'].include?('hub') || h['roles'].include?('spoke')})
+                  return {:answers => { 'pe_install::disable_mco' => false }}
+                end
           end
           return {}
         end

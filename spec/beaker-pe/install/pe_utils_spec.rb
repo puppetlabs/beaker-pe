@@ -1490,22 +1490,29 @@ describe ClassMixedWithDSLInstallUtils do
 
     it 'returns mco enabled with both hub and spoke and version is greater' do
       hosts = [master, hub, spoke]
-      allow(subject).to receive(:version_is_less).and_return(true)
       expect(subject.get_mco_setting(hosts)).to eq({:answers => {'pe_install::disable_mco' => false}})
     end
     it 'returns mco enabled with just hub and version is greater' do
       hosts = [master, hub]
-      allow(subject).to receive(:version_is_less).and_return(true)
       expect(subject.get_mco_setting(hosts)).to eq({:answers => {'pe_install::disable_mco' => false}})
     end
     it 'returns mco enabled with just spoke and version is greater' do
       hosts = [master, spoke]
-      allow(subject).to receive(:version_is_less).and_return(true)
       expect(subject.get_mco_setting(hosts)).to eq({:answers => {'pe_install::disable_mco' => false}})
     end
-    it 'does not return anything if the version is less' do
+    it 'returns mco enabled for versions between 2018.1 and  2018.2' do
+      master['pe_ver'] = '2018.1.1'
       hosts = [master, hub, spoke]
-      allow(subject).to receive(:version_is_less).and_return(false)
+      expect(subject.get_mco_setting(hosts)).to eq({:answers => {'pe_install::disable_mco' => false}})
+    end
+    it 'does not return anything for versions >= 2018.2' do
+      master['pe_ver'] = '2018.2.0'
+      hosts = [master, hub, spoke]
+      expect(subject.get_mco_setting(hosts)).to eq({})
+    end
+    it 'does not return anything for versions <  2018.1' do
+      master['pe_ver'] = '2017.3.7'
+      hosts = [master, hub, spoke]
       expect(subject.get_mco_setting(hosts)).to eq({})
     end
   end
