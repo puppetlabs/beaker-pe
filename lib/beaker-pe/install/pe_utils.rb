@@ -478,7 +478,7 @@ module Beaker
             if network_resources != nil
               network_resources.each do |resource|
                 # curl the network resource silently (-s), only connect (-I), and don't print the output
-                on host, "curl -I -s #{resource} > /dev/null", :accept_all_exit_codes => true
+                on host, "curl -I -s --max-time 10 #{resource} > /dev/null", :accept_all_exit_codes => true
                 if host.connection.logger.last_result.exit_code != 0
                   logger.warn("Connection error: #{host.host_hash[:vmhostname]} was unable to connect to #{resource}. Please ensure that your test does not require this resource.")
                 end
