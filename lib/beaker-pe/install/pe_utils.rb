@@ -129,6 +129,13 @@ module Beaker
           downloadhost
         end
 
+        #Remove client_datadir on the host
+        #@param [Host] the host
+        def remove_client_datadir(host)
+          client_datadir = host.puppet['client_datadir']
+          on(host, "rm -rf #{client_datadir}")
+        end
+
         # Generate the command line string needed to from a frictionless puppet-agent
         # install on this host in a PE environment.
         #
@@ -807,8 +814,7 @@ module Beaker
                 end
                 #Workaround for windows frictionless install, see BKR-943 for the reason
                 if (host['platform'] =~ /windows/) and (host['roles'].include? 'frictionless')
-                  client_datadir = host.puppet['client_datadir']
-                  on(host , puppet("resource file \"#{client_datadir}\" ensure=absent force=true"))
+                  remove_client_datadir(host)
                 end
               end
             end
@@ -1841,8 +1847,7 @@ module Beaker
 
              #Workaround for windows frictionless install, see BKR-943
              agent_nodes.select {|agent| agent['platform'] =~ /windows/}.each do |agent|
-               client_datadir = agent.puppet['client_datadir']
-               on(agent, puppet("resource file \"#{client_datadir}\" ensure=absent force=true"))
+               remove_client_datadir(agent)
              end
           end
         end
