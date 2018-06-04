@@ -6,6 +6,7 @@ require "beaker-answers"
 require "timeout"
 require "json"
 require "deep_merge"
+require "beaker-task_helper"
 module Beaker
   module DSL
     module InstallUtils
@@ -628,6 +629,10 @@ module Beaker
           step "Run puppet to setup mcollective and pxp-agent" do
             on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
           end
+
+          install_bolt_on(master)
+          on(master, puppet('module install puppetlabs-bootstrap'))
+          setup_ssh_access(master, agents)
 
           install_agents_only_on(agents, opts)
 
@@ -1806,6 +1811,11 @@ module Beaker
         # @param [Array] agent only nodes from Beaker hosts
         # @param [Hash] opts The Beaker options hash
         def install_agents_only_on(agent_nodes, opts)
+
+          hosts_string = ""
+          win_hosts_string = ""
+          win_agents =[]
+          unix_agents = []
           unless agent_nodes.empty?
             configure_type_defaults_on(agent_nodes)
 
@@ -1820,9 +1830,23 @@ module Beaker
              end
 
              step "Install agents" do
-               block_on(agent_nodes, {:run_in_parallel => true}) do |host|
-                 install_ca_cert_on(host, opts)
-                 on(host, installer_cmd(host, opts))
+               agent_nodes.each do |agent|
+                 if agent['platform'] =~ /windows/
+                   win_agents.push agent
+                   win_hosts_string += "#{agent.hostname},"
+                 else
+                   unix_agents.push agent
+                   hosts_string += "#{agent.hostname},"
+                 end
+               end
+               modulepath = "/etc/puppetlabs/code/environments/production/modules/"
+               win_modulepath = 'C:/ProgramData/PuppetLabs/code/modules'
+               task_params = "master=#{master.hostname}"
+               unless unix_agents.empty?
+                 run_bolt_task(task_name: 'bootstrap::linux', host: hosts_string, module_path: modulepath, params: task_params)
+               end
+               unless win_agents.empty?
+                 run_bolt_task(task_name: 'bootstrap::windows', host: win_hosts_string, module_path: win_modulepath, params: task_params)
                end
              end
 
