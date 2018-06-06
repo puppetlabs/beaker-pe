@@ -22,6 +22,7 @@ if ENV['GEM_SOURCE'] =~ /artifactory\.delivery\.puppetlabs\.net/
   gem "scooter", *location_for(ENV['SCOOTER_VERSION'] || '~> 3.0')
 end
 
+#gem "beaker-task_helper", :git => "git@github.com:puppetlabs/beaker-task_helper.git"
 gem 'deep_merge'
 
 if File.exists? "#{__FILE__}.local"
