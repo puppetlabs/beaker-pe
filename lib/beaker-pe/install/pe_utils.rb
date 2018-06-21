@@ -1371,8 +1371,29 @@ module Beaker
         #                    The host object must have the 'working_dir', 'dist' and 'pe_installer' field set correctly.
         # @api private
         def higgs_installer_cmd host
-          higgs_answer = use_meep?(host['pe_ver']) ? '1' : 'Y'
+          higgs_answer = determine_higgs_answer(host['pe_ver'])
           "cd #{host['working_dir']}/#{host['dist']} ; nohup ./#{host['pe_installer']} <<<#{higgs_answer} > #{host['higgs_file']} 2>&1 &"
+        end
+
+        # Determines the answer to supply to the command line installer in order to load up Higgs
+        # @return [String]
+        #  One of, 'Y', '1', '2'
+        #     'Y'
+        #       Pre-meep install of Higgs (Before PE 2016.2.0)
+        #     '1'
+        #       meep before PE 2018.1.3 (PE 2016.2.0 -> PE 2018.1.2)
+        #     '2'
+        #       Any meep PE 2018.1.3 or greater
+        def determine_higgs_answer(pe_ver)
+          if(use_meep?(pe_ver))
+            if(version_is_less(pe_ver, '2018.1.3'))
+              return '1'
+            else
+              return '2'
+            end
+          else
+            return 'Y'
+          end
         end
 
         #Perform a Puppet Enterprise Higgs install up until web browser interaction is required, runs on linux hosts only.

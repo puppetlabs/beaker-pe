@@ -2469,6 +2469,18 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe 'determine_higgs_answer' do
+    it 'returns Y if the pe_ver is pre-meep' do
+      expect(subject.determine_higgs_answer('2016.1.0')).to eq('Y')
+    end
+    it 'returns 1 if the pe_ver is less then 2018.1.3' do
+      expect(subject.determine_higgs_answer('2018.1.0')).to eq('1')
+    end
+    it 'returns 2 if the pe_ver is greater then 2018.1.3' do
+      expect(subject.determine_higgs_answer('2018.2.0')).to eq('2')
+    end
+  end
+
   describe 'update_pe_conf' do
     let(:pe_version) { '2017.1.0' }
     let(:master) { hosts[0] }
