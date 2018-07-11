@@ -501,6 +501,24 @@ module Beaker
           end
         end
 
+        # Check system resources, so that we might be able to find correlations
+        # between absurd load levels and transients.
+        # @param [Array<Host>] hosts
+        #
+        # @example
+        #   verify_vm_resources(hosts)
+        #
+        # @return nil
+        #
+        # @api private
+        def verify_vm_resources(hosts)
+          logger.notify("Checking the status of system (CPU/Mem) resources on PE Infrastructure nodes.")
+          pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'dashboard', 'database']}, hosts)
+          pe_infrastructure.each do |host|
+            on host, "top -bn1", :accept_all_exit_codes => true
+          end
+        end
+
         #Perform a Puppet Enterprise upgrade or install
         # @param [Array<Host>] hosts The hosts to install or upgrade PE on
         # @param  [Hash{Symbol=>Symbol, String}] opts The options
@@ -534,6 +552,7 @@ module Beaker
           # detect the kind of install we're doing
           install_type = determine_install_type(hosts, opts)
           verify_network_resources(hosts, options[:net_diag_hosts])
+          verify_vm_resources(hosts)
           if opts[:use_proxy]
             config_master_for_proxy_access
           end
