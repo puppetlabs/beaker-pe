@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'scooter'
+require 'beaker-puppet'
 
 class ClassMixedWithDSLInstallUtils
   include Beaker::DSL::InstallUtils
