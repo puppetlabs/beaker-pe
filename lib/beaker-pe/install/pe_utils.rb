@@ -1,4 +1,4 @@
-[ 'aio_defaults', 'pe_defaults', 'puppet_utils', 'windows_utils' ].each do |lib|
+[ 'aio_defaults', 'puppet_utils', 'windows_utils' ].each do |lib|
     require "beaker/dsl/install_utils/#{lib}"
 end
 require 'beaker-pe/install/feature_flags'
