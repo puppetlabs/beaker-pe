@@ -31,6 +31,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'thin'
 
   # Run time dependencies
+  s.add_runtime_dependency 'beaker', '~>4.0'
   s.add_runtime_dependency 'beaker-puppet', '~>1.0'
   s.add_runtime_dependency 'stringify-hash', '~> 0.0.0'
   s.add_runtime_dependency 'beaker-answers', '~> 0.0'
