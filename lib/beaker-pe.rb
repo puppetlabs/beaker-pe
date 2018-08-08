@@ -1,3 +1,5 @@
+require 'beaker'
+
 require 'stringify-hash'
 require 'beaker-pe/version'
 require 'beaker-pe/install/pe_defaults'
