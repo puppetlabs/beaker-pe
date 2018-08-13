@@ -1,3 +1,6 @@
+require 'beaker'
+require 'beaker-puppet'
+
 require 'stringify-hash'
 require 'beaker-pe/version'
 require 'beaker-pe/install/pe_defaults'
@@ -23,13 +26,3 @@ end
 # Boilerplate DSL inclusion mechanism:
 # First we register our module with the Beaker DSL
 Beaker::DSL.register( Beaker::DSL::PE )
-
-# Second,We need to reload the DSL, but before we had reloaded
-# it in the global namespace, which result in errors colliding
-# with other gems rightfully not expecting beaker's dsl to
-# be available at the global level.
-module Beaker
-  class TestCase
-    include Beaker::DSL
-  end
-end
