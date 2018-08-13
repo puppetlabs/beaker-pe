@@ -1,4 +1,5 @@
 require 'beaker'
+require 'beaker-puppet'
 
 require 'stringify-hash'
 require 'beaker-pe/version'
