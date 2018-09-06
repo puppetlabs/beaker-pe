@@ -36,6 +36,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'stringify-hash', '~> 0.0.0'
   s.add_runtime_dependency 'beaker-answers', '~> 0.0'
   s.add_runtime_dependency 'beaker-abs'
+  s.add_runtime_dependency 'beaker-vmpooler', '~> 1.0'
 
 end
 
