@@ -1500,6 +1500,8 @@ module Beaker
           pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'dashboard', 'database', 'pe_postgres']}, hosts)
           non_infrastructure = hosts.reject{|host| pe_infrastructure.include? host}
 
+          configure_type_defaults_on([master])
+
           is_upgrade = (original_pe_ver(hosts[0]) != hosts[0][:pe_ver])
           step "Setup tmp installer directory and pe.conf" do
 
