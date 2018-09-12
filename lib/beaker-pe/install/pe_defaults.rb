@@ -21,7 +21,7 @@ module Beaker
             'puppetvardir'     => '/var/opt/lib/pe-puppet',
             'hieradatadir'     => '/var/lib/hiera',
             'hieraconf'        => '/etc/puppetlabs/puppet/hiera.yaml',
-            'distmoduledir'    => '/etc/puppetlabs/puppet/modules',
+            'distmoduledir'    => '/etc/puppetlabs/code/modules',
             'sitemoduledir'    => '/opt/puppet/share/puppet/modules',
           },
           'unix' => {
@@ -36,7 +36,7 @@ module Beaker
             'puppetvardir'     => '/var/opt/lib/pe-puppet',
             'hieradatadir'     => '/var/lib/hiera',
             'hieraconf'        => '/etc/puppetlabs/puppet/hiera.yaml',
-            'distmoduledir'    => '/etc/puppetlabs/puppet/modules',
+            'distmoduledir'    => '/etc/puppetlabs/code/modules',
             'sitemoduledir'    => '/opt/puppet/share/puppet/modules',
           },
           'windows' => { #cygwin windows
@@ -46,7 +46,7 @@ module Beaker
             'puppetcodedir' => '`cygpath -smF 35`/PuppetLabs/puppet/etc',
             'hieraconf'     => '`cygpath -smF 35`/Puppetlabs/puppet/etc/hiera.yaml',
             'puppetvardir'  => '`cygpath -smF 35`/PuppetLabs/puppet/var',
-            'distmoduledir' => '`cygpath -smF 35`/PuppetLabs/puppet/etc/modules',
+            'distmoduledir' => '`cygpath -smF 35`/PuppetLabs/code/modules',
             'sitemoduledir' => 'C:/usr/share/puppet/modules',
             #let's just add both potential bin dirs to the path
             'puppetbindir'  => '/cygdrive/c/Program Files (x86)/Puppet Labs/Puppet Enterprise/bin:/cygdrive/c/Program Files/Puppet Labs/Puppet Enterprise/bin',
@@ -58,7 +58,7 @@ module Beaker
             'puppetconfdir' => 'C:\\ProgramData\\PuppetLabs\\puppet\\etc',
             'puppetcodedir' => 'C:\\ProgramData\\PuppetLabs\\puppet\\etc',
             'hieraconf'     => 'C:\\ProgramData\\PuppetLabs\\puppet\\etc\\hiera.yaml',
-            'distmoduledir' => 'C:\\ProgramData\\PuppetLabs\\puppet\\etc\\modules',
+            'distmoduledir' => 'C:\\ProgramData\\PuppetLabs\\code\\modules',
             'sitemoduledir' => 'C:\\usr\\share\\puppet\\modules',
             'puppetvardir'  => 'C:\\ProgramData\\PuppetLabs\\puppet\\var',
             'puppetbindir'  => '"C:\\Program Files (x86)\\PuppetLabs\\Puppet Enterprise\\bin";"C:\\Program Files\\PuppetLabs\\Puppet Enterprise\\bin"'
