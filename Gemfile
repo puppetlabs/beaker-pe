@@ -17,9 +17,7 @@ group :acceptance_testing do
   gem "beaker-vmpooler", *location_for(ENV['BEAKER_VMPOOLER_VERSION'] || '~> 1.3')
 end
 
-if ENV['GEM_SOURCE'] =~ /artifactory\.delivery\.puppetlabs\.net/
-  gem "scooter", *location_for(ENV['SCOOTER_VERSION'] || '~> 3.0')
-end
+gem "scooter", *location_for(ENV['SCOOTER_VERSION'] || '~> 4.3')
 
 gem 'deep_merge'
 
