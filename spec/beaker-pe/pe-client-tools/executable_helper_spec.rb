@@ -64,25 +64,66 @@ describe MixedWithExecutableHelper do
 
   context 'puppet access login with lifetime parameter' do
     let(:logger) {Beaker::Logger.new}
-    let(:test_host) {Beaker::Host.create('my_super_host',
-                                         {:roles => ['master', 'agent'],
-                                          :platform => 'linux',
-                                          :type => 'pe'},
-                                          make_opts)}
-    let(:username) {'T'}
-    let(:password) {'Swift'}
-    let(:credentials) {{:login => username, :password => password}}
-    let(:test_dispatcher) {Scooter::HttpDispatchers::ConsoleDispatcher.new('my_super_host', credentials)}
+    let(:test_host) {
+      make_host('my_super_host', {
+          :roles => ['master', 'agent'],
+          :platform => 'linux',
+          :type => 'pe'
+        }
+      )
+    }
+    let(:credentials) {
+      mock = Object.new
+      allow(mock).to receive(:login).and_return('T')
+      allow(mock).to receive(:password).and_return('Swift')
+      mock
+    }
+    let(:test_dispatcher) {
+      mock = Object.new
+      allow(mock).to receive(:credentials).and_return(credentials)
+      mock
+    }
 
     before do
       allow(logger).to receive(:debug) { true }
-      expect(test_dispatcher).to be_kind_of(Scooter::HttpDispatchers::ConsoleDispatcher)
       expect(test_host).to be_kind_of(Beaker::Host)
-      expect(test_host).to receive(:exec)
     end
 
-    it 'accepts correct value' do
-      expect{subject.login_with_puppet_access_on(test_host, test_dispatcher, {:lifetime => '5d'})}.not_to raise_error
+    it 'passes the lifetime value to :puppet_access_on on linux' do
+      lifetime_value = '5d'
+
+      expect(subject).to receive(:puppet_access_on).with(
+        test_host,
+        "login",
+        "--lifetime #{lifetime_value}",
+        anything
+      )
+
+      expect{
+        subject.login_with_puppet_access_on(
+          test_host,
+          test_dispatcher,
+          {:lifetime => lifetime_value}
+        )
+      }.not_to raise_error
+    end
+
+    it 'passes the lifetime value to the passed dispatcher on windows' do
+      test_host[:platform] = "win-stuff"
+      allow(subject).to receive(:create_remote_file)
+      lifetime_value = '6d'
+
+      expect(test_dispatcher).to receive(
+        :acquire_token_with_credentials
+      ).with(lifetime_value)
+
+      expect{
+        subject.login_with_puppet_access_on(
+          test_host,
+          test_dispatcher,
+          {:lifetime => lifetime_value}
+        )
+      }.not_to raise_error
     end
   end
 end
