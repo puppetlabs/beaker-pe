@@ -102,7 +102,7 @@ describe ClassPEClientToolsMixedWithPatterns do
         hosts.each do |host|
           allow(subject).to receive(:fetch_http_file).with("http://builds.delivery.puppetlabs.net/pe-client-tools/#{opts[:pe_client_tools_sha]}/artifacts/apple/1111/PC1/x86_64", "pe-client-tools-#{opts[:pe_client_tools_version]}-1.osx1111.dmg", "tmp/repo_configs")
           allow(host).to receive(:external_copy_base)
-          expect(host).to receive(:generic_install_dmg).with("pe-client-tools-#{opts[:pe_client_tools_version]}-1.osx1111.dmg", "pe-client-tools-#{opts[:pe_client_tools_version]}", "pe-client-tools-#{opts[:pe_client_tools_version]}-1-installer.pkg")
+          expect(host).to receive(:generic_install_dmg).with("pe-client-tools-#{opts[:pe_client_tools_version]}-1.osx1111.dmg", "pe-client-tools-#{opts[:pe_client_tools_version]}-1*", "pe-client-tools-#{opts[:pe_client_tools_version]}-1*-installer.pkg")
           subject.install_pe_client_tools_on(host, opts)
         end
       end
@@ -111,7 +111,7 @@ describe ClassPEClientToolsMixedWithPatterns do
         hosts.each do |host|
           allow(subject).to receive(:fetch_http_file).with("http://builds.delivery.puppetlabs.net/pe-client-tools/#{tag_opts[:pe_client_tools_version]}/artifacts/apple/1111/PC1/x86_64", "pe-client-tools-#{tag_opts[:pe_client_tools_version]}-1.osx1111.dmg", "tmp/repo_configs")
           allow(host).to receive(:external_copy_base)
-          expect(host).to receive(:generic_install_dmg).with("pe-client-tools-#{tag_opts[:pe_client_tools_version]}-1.osx1111.dmg", "pe-client-tools-#{tag_opts[:pe_client_tools_version]}", "pe-client-tools-#{tag_opts[:pe_client_tools_version]}-1-installer.pkg")
+          expect(host).to receive(:generic_install_dmg).with("pe-client-tools-#{tag_opts[:pe_client_tools_version]}-1.osx1111.dmg", "pe-client-tools-#{tag_opts[:pe_client_tools_version]}-1*", "pe-client-tools-#{tag_opts[:pe_client_tools_version]}-1*-installer.pkg")
 
           subject.install_pe_client_tools_on(host, tag_opts)
         end

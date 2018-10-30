@@ -33,16 +33,17 @@ module Beaker
                 generic_install_msi_on(host, File.join(release_path, package_name), {}, {:debug => true})
               when /osx/
                 release_path = "#{opts[:dev_builds_url]}/#{product}/#{directory}/artifacts/apple/#{version}/#{opts[:puppet_collection]}/#{arch}"
-                package_base = product.dup
-                package_base << "-#{opts[:pe_client_tools_version]}"
-                package_name = package_base.dup
-                package_name << '-1' if opts[:pe_client_tools_version]
-                installer    = package_name + '-installer.pkg'
-                package_name << ".#{variant}#{version}.dmg"
+                package_base = "#{product}-#{opts[:pe_client_tools_version]}"
+                package_base << '-1' if opts[:pe_client_tools_version]
+
+                dmg = package_base + ".#{variant}#{version}.dmg"
                 copy_dir_local = File.join('tmp', 'repo_configs')
-                fetch_http_file(release_path, package_name, copy_dir_local)
-                scp_to host, File.join(copy_dir_local, package_name), host.external_copy_base
-                host.generic_install_dmg(package_name, package_base, installer)
+                fetch_http_file(release_path, dmg, copy_dir_local)
+                scp_to host, File.join(copy_dir_local, dmg), host.external_copy_base
+
+                package_name = package_base + '*'
+                installer = package_name + '-installer.pkg'
+                host.generic_install_dmg(dmg, package_name, installer)
               else
                 install_dev_repos_on(product, host, directory, '/tmp/repo_configs',{:dev_builds_url => opts[:dev_builds_url]})
                 host.install_package('pe-client-tools')
