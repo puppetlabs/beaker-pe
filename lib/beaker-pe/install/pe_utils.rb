@@ -1539,7 +1539,7 @@ module Beaker
               end
           end
 
-          step "Final puppet run on infrastructure + postgres node" do
+          step "First puppet run on infrastructure + postgres node" do
             [master, database, dashboard, pe_postgres].uniq.each do |host|
               on host, 'puppet agent -t', :acceptable_exit_codes => [0,2]
             end
@@ -1553,9 +1553,9 @@ module Beaker
               run_puppet_on_non_infrastructure_nodes(non_infrastructure)
             end
 
-            step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
-              on master, 'puppet agent -t', :acceptable_exit_codes => [0,2]
-            end
+          end
+          step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
+            on master, 'puppet agent -t', :acceptable_exit_codes => [0,2]
           end
         end
 
