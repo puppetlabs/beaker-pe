@@ -1389,7 +1389,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:execute_installer_cmd).with(mono_master, {}).once
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
 
-      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).twice
       allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
 
       expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres], {}) }.not_to raise_error
@@ -1412,7 +1412,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:execute_installer_cmd).with(split_console, {}).once
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
 
-      allow(subject).to receive(:on).with(split_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(split_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).twice
       allow(subject).to receive(:on).with(split_database, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
       allow(subject).to receive(:on).with(split_console, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
       allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
@@ -1437,7 +1437,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:execute_installer_cmd).with(split_console, {}).once
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
 
-      allow(subject).to receive(:on).with(split_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
+      allow(subject).to receive(:on).with(split_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).twice
       allow(subject).to receive(:on).with(split_database, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
       allow(subject).to receive(:on).with(split_console, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
       allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
