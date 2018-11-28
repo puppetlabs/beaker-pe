@@ -1407,8 +1407,10 @@ module Beaker
           if(use_meep?(pe_ver))
             if(version_is_less(pe_ver, '2018.1.3'))
               return '1'
-            else
+            elsif(version_is_less(pe_ver, '2019.0.2'))
               return '2'
+            else
+              return '3'
             end
           else
             return 'Y'

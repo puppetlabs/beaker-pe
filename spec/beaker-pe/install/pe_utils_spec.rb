@@ -2479,6 +2479,9 @@ describe ClassMixedWithDSLInstallUtils do
     it 'returns 2 if the pe_ver is greater then 2018.1.3' do
       expect(subject.determine_higgs_answer('2018.2.0')).to eq('2')
     end
+    it 'returns 3 if the pe_ver is greater then 2019.0.1' do
+      expect(subject.determine_higgs_answer('2019.0.2')).to eq('3')
+    end
   end
 
   describe 'update_pe_conf' do
