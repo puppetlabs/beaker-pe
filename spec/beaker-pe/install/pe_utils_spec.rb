@@ -240,7 +240,7 @@ describe ClassMixedWithDSLInstallUtils do
       expecting = [
         "FRICTIONLESS_TRACE='true'",
         "export FRICTIONLESS_TRACE",
-        "cd /tmp && curl --tlsv1 -O -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
+        "cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
       ].join("; ")
 
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
@@ -251,7 +251,7 @@ describe ClassMixedWithDSLInstallUtils do
       expecting = [
         "FRICTIONLESS_TRACE='true'",
         "export FRICTIONLESS_TRACE",
-        "cd /tmp && curl --tlsv1 -O --cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem https://testmaster:8140/packages/current/install.bash && bash install.bash"
+        "cd /tmp && curl -O --tlsv1 --cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem https://testmaster:8140/packages/current/install.bash && bash install.bash"
       ].join("; ")
 
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
@@ -262,7 +262,7 @@ describe ClassMixedWithDSLInstallUtils do
       expecting = [
         "FRICTIONLESS_TRACE='true'",
         "export FRICTIONLESS_TRACE",
-        "cd /tmp && curl --tlsv1 -O https://testmaster:8140/packages/current/install.bash && bash install.bash"
+        "cd /tmp && curl -O --tlsv1 https://testmaster:8140/packages/current/install.bash && bash install.bash"
       ].join("; ")
 
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
@@ -309,7 +309,7 @@ describe ClassMixedWithDSLInstallUtils do
       expecting = [
         "FRICTIONLESS_TRACE='true'",
         "export FRICTIONLESS_TRACE",
-        "cd /tmp && curl --tlsv1 -O -k https://testloadbalancer:8140/packages/current/install.bash && bash install.bash"
+        "cd /tmp && curl -O --tlsv1 -k https://testloadbalancer:8140/packages/current/install.bash && bash install.bash"
       ].join("; ")
 
       expect( subject.frictionless_agent_installer_cmd( lb_test_hosts[3], {}, '2016.4.0' ) ).to eq(expecting)
@@ -320,7 +320,7 @@ describe ClassMixedWithDSLInstallUtils do
       expecting = [
         "FRICTIONLESS_TRACE='true'",
         "export FRICTIONLESS_TRACE",
-        "cd /tmp && curl --tlsv1 -O -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
+        "cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
       ].join("; ")
 
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
@@ -331,10 +331,29 @@ describe ClassMixedWithDSLInstallUtils do
       expecting = [
         "FRICTIONLESS_TRACE='true'",
         "export FRICTIONLESS_TRACE",
-        "cd /tmp && curl --tlsv1 -O -k https://testmaster:8140/packages/current/install.bash && bash install.bash --puppet-service-debug"
+        "cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash install.bash --puppet-service-debug"
       ].join("; ")
 
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2018.1.0' ) ).to eq(expecting)
+    end
+    it 'generates a unix PE frictionless install command with no --tlsv1 flag if installing 2019.1.0' do
+      expecting = [
+        "FRICTIONLESS_TRACE='true'",
+        "export FRICTIONLESS_TRACE",
+        "cd /tmp && curl -O -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
+      ].join("; ")
+
+      expect( subject.frictionless_agent_installer_cmd( host, {}, '2019.1.0' ) ).to eq(expecting)
+    end
+    it 'generates a unix PE frictionless install command with --tlsv1 flag if installing 2019.1.0 on solaris10' do
+      host[:platform] = 'solaris10'
+      expecting = [
+        "FRICTIONLESS_TRACE='true'",
+        "export FRICTIONLESS_TRACE",
+        "cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
+      ].join("; ")
+
+      expect( subject.frictionless_agent_installer_cmd( host, {}, '2019.1.0' ) ).to eq(expecting)
     end
   end
 
@@ -379,7 +398,7 @@ describe ClassMixedWithDSLInstallUtils do
       the_host['pe_ver'] = '3.8.0'
       the_host['pe_installer'] = 'puppet-enterprise-installer'
       the_host['roles'] = ['frictionless']
-      expect( subject.installer_cmd( the_host, {} ) ).to be ===  "FRICTIONLESS_TRACE='true'; export FRICTIONLESS_TRACE; cd /tmp && curl --tlsv1 -O -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
+      expect( subject.installer_cmd( the_host, {} ) ).to be ===  "FRICTIONLESS_TRACE='true'; export FRICTIONLESS_TRACE; cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
     end
 
     it 'generates a unix PE frictionless install command for a unix host with role "frictionless" and "frictionless_options"' do
@@ -389,7 +408,7 @@ describe ClassMixedWithDSLInstallUtils do
       the_host['pe_installer'] = 'puppet-enterprise-installer'
       the_host['roles'] = ['frictionless']
       the_host['frictionless_options'] = { 'main' => { 'dns_alt_names' => 'puppet' } }
-      expect( subject.installer_cmd( the_host, {} ) ).to be ===  "FRICTIONLESS_TRACE='true'; export FRICTIONLESS_TRACE; cd /tmp && curl --tlsv1 -O -k https://testmaster:8140/packages/current/install.bash && bash install.bash main:dns_alt_names=puppet"
+      expect( subject.installer_cmd( the_host, {} ) ).to be ===  "FRICTIONLESS_TRACE='true'; export FRICTIONLESS_TRACE; cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash install.bash main:dns_alt_names=puppet"
     end
 
     it 'generates a osx PE install command for a osx host' do
@@ -426,7 +445,7 @@ describe ClassMixedWithDSLInstallUtils do
       the_host['pe_installer'] = 'puppet-enterprise-installer'
       the_host['roles'] = ['frictionless']
       the_host[:pe_debug] = true
-      expect( subject.installer_cmd( the_host, {} ) ).to be === "FRICTIONLESS_TRACE='true'; export FRICTIONLESS_TRACE; cd /tmp && curl --tlsv1 -O -k https://testmaster:8140/packages/current/install.bash && bash -x install.bash"
+      expect( subject.installer_cmd( the_host, {} ) ).to be === "FRICTIONLESS_TRACE='true'; export FRICTIONLESS_TRACE; cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash -x install.bash"
     end
   end
 

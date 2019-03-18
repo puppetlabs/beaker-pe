@@ -136,6 +136,13 @@ module Beaker
           on(host, "rm -rf #{client_datadir}")
         end
 
+        #Return true if tlsv1 protocol needs to be enforced
+        #param [Host] the host
+        def require_tlsv1?(host)
+          tlsv1_platforms = [/AIX/, /el-5/, /solaris10/]
+          return tlsv1_platforms.any? {|platform_regex| host['platform'] =~ platform_regex}
+        end
+
         # Generate the command line string needed to from a frictionless puppet-agent
         # install on this host in a PE environment.
         #
@@ -187,7 +194,10 @@ module Beaker
 
             cmd = %Q{powershell -c "cd #{host['working_dir']};#{cert_validator};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{downloadhost}:8140/packages/current/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}"}
           else
-            curl_opts = %w{--tlsv1 -O}
+            curl_opts = %w{-O}
+            if version_is_less(pe_version, '2019.1.0') || require_tlsv1?(host)
+              curl_opts << '--tlsv1'
+            end
             if use_puppet_ca_cert
               curl_opts << '--cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem'
             elsif host['platform'] !~ /aix/
