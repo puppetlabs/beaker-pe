@@ -139,7 +139,7 @@ module Beaker
         #Return true if tlsv1 protocol needs to be enforced
         #param [Host] the host
         def require_tlsv1?(host)
-          tlsv1_platforms = [/AIX/, /el-5/, /solaris10/]
+          tlsv1_platforms = [/aix/, /el-5/, /solaris10/]
           return tlsv1_platforms.any? {|platform_regex| host['platform'] =~ platform_regex}
         end
 
