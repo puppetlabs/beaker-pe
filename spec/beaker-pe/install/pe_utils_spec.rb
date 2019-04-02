@@ -270,9 +270,11 @@ describe ClassMixedWithDSLInstallUtils do
 
     it 'generates a PS1 frictionless install command for windows' do
       host['platform'] = 'windows-2012-64'
+      protocol = ''
       expecting = "powershell -c \"" +
                   [
                     "cd /tmp",
+                    "#{protocol}",
                     "[Net.ServicePointManager]::ServerCertificateValidationCallback = {\\$true}",
                     "\\$webClient = New-Object System.Net.WebClient",
                     "\\$webClient.DownloadFile('https://testmaster:8140/packages/current/install.ps1', '/tmp/install.ps1')",
@@ -286,9 +288,11 @@ describe ClassMixedWithDSLInstallUtils do
       host['platform'] = 'windows-2012-64'
       host['puppetpath'] = '/PuppetLabs/puppet/etc'
       host['use_puppet_ca_cert'] = true
+      protocol = ''
       expecting = "powershell -c \"" +
       [
         "cd /tmp",
+        "#{protocol}",
         "\\$callback = {param(\\$sender,[System.Security.Cryptography.X509Certificates.X509Certificate]\\$certificate,[System.Security.Cryptography.X509Certificates.X509Chain]\\$chain,[System.Net.Security.SslPolicyErrors]\\$sslPolicyErrors)",
         "\\$CertificateType=[System.Security.Cryptography.X509Certificates.X509Certificate2]",
         "\\$CACert=\\$CertificateType::CreateFromCertFile('/PuppetLabs/puppet/etc/ssl/certs/ca.pem') -as \\$CertificateType",
@@ -301,6 +305,38 @@ describe ClassMixedWithDSLInstallUtils do
       ].join(";") +
       "\""
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
+    end
+
+    it 'generates a PS1 frictionless install command for windows with Tls12 protocol' do
+      host['platform'] = 'windows-20012-64'
+      protocol = '[System.Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12'
+      expecting = "powershell -c \"" +
+                  [
+                    "cd /tmp",
+                    "#{protocol}",
+                    "[Net.ServicePointManager]::ServerCertificateValidationCallback = {\\$true}",
+                    "\\$webClient = New-Object System.Net.WebClient",
+                    "\\$webClient.DownloadFile('https://testmaster:8140/packages/current/install.ps1', '/tmp/install.ps1')",
+                    "/tmp/install.ps1 -verbose "
+                  ].join(";") +
+                  "\""
+      expect( subject.frictionless_agent_installer_cmd( host, {}, '2019.1.0' ) ).to eq(expecting)
+    end
+
+    it 'generates a PS1 frictionless install command for windows-2008 without Tls12 protocol' do
+      host['platform'] = 'windows-2008-64'
+      protocol = ''
+      expecting = "powershell -c \"" +
+                  [
+                    "cd /tmp",
+                    "#{protocol}",
+                    "[Net.ServicePointManager]::ServerCertificateValidationCallback = {\\$true}",
+                    "\\$webClient = New-Object System.Net.WebClient",
+                    "\\$webClient.DownloadFile('https://testmaster:8140/packages/current/install.ps1', '/tmp/install.ps1')",
+                    "/tmp/install.ps1 -verbose "
+                  ].join(";") +
+                  "\""
+      expect( subject.frictionless_agent_installer_cmd( host, {}, '2019.1.0' ) ).to eq(expecting)
     end
 
     it 'generates a frictionless install command with loadbalancer as download host' do
