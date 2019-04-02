@@ -139,7 +139,7 @@ module Beaker
         #Return true if tlsv1 protocol needs to be enforced
         #param [Host] the host
         def require_tlsv1?(host)
-          tlsv1_platforms = [/aix/, /el-5/, /solaris10/]
+          tlsv1_platforms = [/aix/, /el-5/, /solaris10/, /windows-2008/]
           return tlsv1_platforms.any? {|platform_regex| host['platform'] =~ platform_regex}
         end
 
@@ -191,8 +191,13 @@ module Beaker
             else
               cert_validator = '[Net.ServicePointManager]::ServerCertificateValidationCallback = {\\$true}'
             end
+            if version_is_less(pe_version, '2019.1.0') || require_tlsv1?(host) then
+              protocol_to_use =''
+            else
+              protocol_to_use = '[System.Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12'
+            end
 
-            cmd = %Q{powershell -c "cd #{host['working_dir']};#{cert_validator};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{downloadhost}:8140/packages/current/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}"}
+            cmd = %Q{powershell -c "cd #{host['working_dir']};#{protocol_to_use};#{cert_validator};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{downloadhost}:8140/packages/current/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}"}
           else
             curl_opts = %w{-O}
             if version_is_less(pe_version, '2019.1.0') || require_tlsv1?(host)
