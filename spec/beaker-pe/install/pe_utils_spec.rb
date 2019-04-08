@@ -382,7 +382,17 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2019.1.0' ) ).to eq(expecting)
     end
     it 'generates a unix PE frictionless install command with --tlsv1 flag if installing 2019.1.0 on solaris10' do
-      host[:platform] = 'solaris10'
+      host[:platform] = 'solaris-10-i386'
+      expecting = [
+        "FRICTIONLESS_TRACE='true'",
+        "export FRICTIONLESS_TRACE",
+        "cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
+      ].join("; ")
+
+      expect( subject.frictionless_agent_installer_cmd( host, {}, '2019.1.0' ) ).to eq(expecting)
+    end
+    it 'generates a unix PE frictionless install command with --tlsv1 flag if installing 2019.1.0 on solaris11' do
+      host[:platform] = 'solaris-11-i386'
       expecting = [
         "FRICTIONLESS_TRACE='true'",
         "export FRICTIONLESS_TRACE",
