@@ -1387,6 +1387,9 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:execute_installer_cmd).with(mono_master, {}).twice
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
 
+      allow(subject).to receive(:stop_agent_on).and_return(true)
+      expect(subject).to receive(:stop_agent_on).with([mono_master, pe_postgres], :run_in_parallel => true).once
+      
       allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).exactly(3).times
       allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
 
@@ -1413,6 +1416,10 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:is_expected_pe_postgres_failure?).and_return(true)
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
       expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).once.ordered
+
+      allow(subject).to receive(:stop_agent_on).and_return(true)
+      expect(subject).to receive(:stop_agent_on).with([mono_master, pe_postgres], :run_in_parallel => true).once
+
       allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).exactly(3).times
       allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
 
@@ -1454,6 +1461,10 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:execute_installer_cmd).with(mono_master, {}).once
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
 
+      allow(subject).to receive(:stop_agent_on).and_return(true)
+      expect(subject).to receive(:stop_agent_on).with([mono_master, pe_postgres], :run_in_parallel => true).once
+
+
       allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).twice
       allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
 
@@ -1476,6 +1487,9 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:execute_installer_cmd).with(split_database, {}).once
       allow(subject).to receive(:execute_installer_cmd).with(split_console, {}).once
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
+
+      allow(subject).to receive(:stop_agent_on).and_return(true)
+      expect(subject).to receive(:stop_agent_on).with([split_master, split_database, split_console, pe_postgres], :run_in_parallel => true).once
 
       allow(subject).to receive(:on).with(split_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).twice
       allow(subject).to receive(:on).with(split_database, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once
@@ -1501,6 +1515,9 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:execute_installer_cmd).with(split_database, {}).once
       allow(subject).to receive(:execute_installer_cmd).with(split_console, {}).once
       allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
+
+      allow(subject).to receive(:stop_agent_on).and_return(true)
+      expect(subject).to receive(:stop_agent_on).with([split_master, split_database, split_console, pe_postgres], :run_in_parallel => true).once
 
       allow(subject).to receive(:on).with(split_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).twice
       allow(subject).to receive(:on).with(split_database, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).once

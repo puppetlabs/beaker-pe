@@ -6,6 +6,7 @@ require "beaker-answers"
 require "timeout"
 require "json"
 require "deep_merge"
+
 module Beaker
   module DSL
     module InstallUtils
@@ -1554,6 +1555,10 @@ module Beaker
               [master, database, dashboard].uniq.each do |host|
                 execute_installer_cmd(host, opts)
               end
+          end
+
+          step "Stop agent service on infrastructure nodes" do
+            stop_agent_on(pe_infrastructure, :run_in_parallel => true)
           end
 
           step "First puppet run on infrastructure + postgres node" do
