@@ -99,7 +99,8 @@ module Beaker
               )
 
               scp_to host, list, '/etc/apt/sources.list.d'
-              if variant == 'ubuntu' && version.split('.').first.to_i >= 18
+              # Ubuntu platform gets host['platform'].with_version_codename (see line 57)
+              if variant == 'ubuntu' && version == 'bionic'
                 apt_conf_content = 'Acquire::AllowInsecureRepositories "true";'
               else
                 apt_conf_content = 'APT::Get::AllowUnauthenticated "true";'
