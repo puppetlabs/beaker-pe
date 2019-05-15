@@ -1515,7 +1515,7 @@ module Beaker
 
         #Installs PE with a PE managed external postgres
         def do_install_pe_with_pe_managed_external_postgres(hosts, opts)
-          pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'dashboard', 'database', 'pe_postgres']}, hosts)
+          pe_infrastructure = select_hosts({:roles => ['master', 'dashboard', 'database', 'pe_postgres']}, hosts)
           non_infrastructure = hosts.reject{|host| pe_infrastructure.include? host}
 
           is_upgrade = (original_pe_ver(hosts[0]) != hosts[0][:pe_ver])
