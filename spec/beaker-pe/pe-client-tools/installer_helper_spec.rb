@@ -31,7 +31,13 @@ describe ClassPEClientToolsMixedWithPatterns do
       let(:platform) { Beaker::Platform.new('el-6-x86_64') }
       it 'installs' do
         hosts.each do |host|
-          allow(subject). to receive(:fetch_http_file).with("http://builds.delivery.puppetlabs.net/pe-client-tools/#{opts[:pe_client_tools_sha]}/repo_configs/rpm/", "pl-pe-client-tools-#{opts[:pe_client_tools_sha]}-el-6-x86_64.repo", "/tmp/repo_configs/el-6-x86_64")
+          expect(subject).to receive(:install_puppetlabs_dev_repo).with(
+            host,
+            'pe-client-tools',
+            opts[:pe_client_tools_sha],
+            '/tmp/repo_configs',
+            dev_builds_url: 'http://builds.delivery.puppetlabs.net'
+          )
           expect(host).to receive(:install_package).with("pe-client-tools")
 
           subject.install_pe_client_tools_on(host, opts)
@@ -40,7 +46,13 @@ describe ClassPEClientToolsMixedWithPatterns do
 
       it 'installs tag versions correctly' do
         hosts.each do |host|
-          allow(subject). to receive(:fetch_http_file).with("http://builds.delivery.puppetlabs.net/pe-client-tools/#{tag_opts[:pe_client_tools_version]}/repo_configs/rpm/", "pl-pe-client-tools-#{tag_opts[:pe_client_tools_version]}-el-6-x86_64.repo", "/tmp/repo_configs/el-6-x86_64")
+          expect(subject).to receive(:install_puppetlabs_dev_repo).with(
+            host,
+            'pe-client-tools',
+            tag_opts[:pe_client_tools_version],
+            '/tmp/repo_configs',
+            dev_builds_url: 'http://builds.delivery.puppetlabs.net'
+          )
           expect(host).to receive(:install_package).with("pe-client-tools")
 
           subject.install_pe_client_tools_on(host, tag_opts)
@@ -52,8 +64,13 @@ describe ClassPEClientToolsMixedWithPatterns do
       let(:platform) { Beaker::Platform.new('ubuntu-1604-x86_64') }
       it 'installs' do
         hosts.each do |host|
-          allow(subject). to receive(:fetch_http_file).with("http://builds.delivery.puppetlabs.net/pe-client-tools/#{opts[:pe_client_tools_sha]}/repo_configs/deb/", "pl-pe-client-tools-#{opts[:pe_client_tools_sha]}-xenial.list", "/tmp/repo_configs/ubuntu-xenial-x86_64")
-          expect(subject).to receive(:on).with(host, 'apt-get update')
+          expect(subject).to receive(:install_puppetlabs_dev_repo).with(
+            host,
+            'pe-client-tools',
+            opts[:pe_client_tools_sha],
+            '/tmp/repo_configs',
+            dev_builds_url: 'http://builds.delivery.puppetlabs.net'
+          )
           expect(host).to receive(:install_package).with('pe-client-tools')
 
           subject.install_pe_client_tools_on(host, opts)
@@ -62,8 +79,13 @@ describe ClassPEClientToolsMixedWithPatterns do
 
       it 'installs tag versions correctly' do
         hosts.each do |host|
-          allow(subject). to receive(:fetch_http_file).with("http://builds.delivery.puppetlabs.net/pe-client-tools/#{tag_opts[:pe_client_tools_version]}/repo_configs/deb/", "pl-pe-client-tools-#{tag_opts[:pe_client_tools_version]}-xenial.list", "/tmp/repo_configs/ubuntu-xenial-x86_64")
-          expect(subject).to receive(:on).with(host, 'apt-get update')
+          expect(subject).to receive(:install_puppetlabs_dev_repo).with(
+            host,
+            'pe-client-tools',
+            tag_opts[:pe_client_tools_version],
+            '/tmp/repo_configs',
+            dev_builds_url: 'http://builds.delivery.puppetlabs.net'
+          )
           expect(host).to receive(:install_package).with('pe-client-tools')
 
           subject.install_pe_client_tools_on(host, tag_opts)
