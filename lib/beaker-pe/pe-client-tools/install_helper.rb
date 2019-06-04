@@ -51,65 +51,11 @@ module Beaker
           end
         end
 
-        # Taken from puppet acceptance lib
-        # Install development repos
+        # `install_dev_repos_on` is used in various projects in the puppetlabs namespace;
+        # when they are all switched to call `install_puppetlabs_dev_repo`, this method
+        # can be removed.
         def install_dev_repos_on(package, host, sha, repo_configs_dir, opts={})
-          platform = host['platform'] =~ /^(debian|ubuntu)/ ? host['platform'].with_version_codename : host['platform']
-          platform_configs_dir = File.join(repo_configs_dir, platform)
-
-          case platform
-            when /^(fedora|el|centos|sles)-(\d+)-(.+)$/
-              variant = (($1 == 'centos') ? 'el' : $1)
-              fedora_prefix = ((variant == 'fedora') ? 'f' : '')
-              version = $2
-              arch = $3
-
-              pattern = 'pl-%s-%s-%s-%s%s-%s.repo'
-
-              repo_filename = pattern % [
-                  package,
-                  sha,
-                  variant,
-                  fedora_prefix,
-                  version,
-                  arch
-              ]
-
-              repo = fetch_http_file(
-                  "%s/%s/%s/repo_configs/rpm/" % [opts[:dev_builds_url],package, sha],
-                  repo_filename,
-                  platform_configs_dir
-              )
-
-              if /sles/i.match(platform)
-                scp_to(host, repo, '/etc/zypp/repos.d/')
-              else
-                scp_to(host, repo, '/etc/yum.repos.d/')
-              end
-
-            when /^(debian|ubuntu)-([^-]+)-(.+)$/
-              variant = $1
-              version = $2
-              arch = $3
-
-              list = fetch_http_file(
-                  "%s/%s/%s/repo_configs/deb/" % [opts[:dev_builds_url],package, sha],
-                  "pl-%s-%s-%s.list" % [package, sha, version],
-                  platform_configs_dir
-              )
-
-              scp_to host, list, '/etc/apt/sources.list.d'
-              # Ubuntu platform gets host['platform'].with_version_codename (see line 57)
-              if variant == 'ubuntu' && version == 'bionic'
-                apt_conf_content = 'Acquire::AllowInsecureRepositories "true";'
-              else
-                apt_conf_content = 'APT::Get::AllowUnauthenticated "true";'
-              end
-              create_remote_file(host, '/etc/apt/apt.conf.d/99trust-all', apt_conf_content)
-              on host, 'apt-get update'
-            else
-              host.logger.notify("No repository installation step for #{platform} yet...")
-          end
+          install_puppetlabs_dev_repo(host, package, sha, repo_configs_dir, opts)
         end
       end
     end
