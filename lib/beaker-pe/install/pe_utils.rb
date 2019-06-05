@@ -106,6 +106,28 @@ module Beaker
           end
         end
 
+        # Return pe_postgres node if exists. Otherwise returns nil
+        def pe_postgres
+          p_host = select_hosts(roles: ['pe_postgres'])
+          if p_host.empty?
+            return nil
+          else
+            p_host.first
+          end
+        end
+
+        # Returns true if it is a legacy or mono+postgres split installation
+        def is_split?
+          pe_postgres || [master, database, dashboard].uniq.length !=1
+        end
+
+        # Check added to limit the use of upgrade plan only in 2018.1.x upgrades for time being.
+        # This check needs to be expanded to add 2019.1.x and up later
+        def upgrade_plan_available?
+          upgrade_ver = master['pe_upgrade_ver'] || opts['pe_upgrade_ver']
+          is_split? && version_is_less(upgrade_ver, '2019.0') && !version_is_less(upgrade_ver, '2018.1.9')
+        end
+
         # Return agent nodes with 'lb_connect' role that are not loadbalancers
         def loadbalancer_connecting_agents
           lb_connect_nodes = select_hosts(roles: ['lb_connect'])
@@ -573,6 +595,8 @@ module Beaker
             config_master_for_proxy_access
           end
           case install_type
+          when :split_upgrade_plan
+            run_split_upgrade_plan(hosts, opts)
           when :pe_managed_postgres
             do_install_pe_with_pe_managed_external_postgres(hosts,opts)
           when :simple_monolithic
@@ -616,6 +640,7 @@ module Beaker
           # Do a generic install if this is masterless, not all the same PE version, an upgrade, or earlier than 2016.4
           return :generic if opts[:masterless]
           return :generic if hosts.map {|host| host['pe_ver']}.uniq.length > 1
+          return :split_upgrade_plan if (opts[:type] == :upgrade) && upgrade_plan_available?
           return :generic if (opts[:type] == :upgrade) && (hosts.none? {|host| host['roles'].include?('pe_postgres')})
           return :generic if version_is_less(opts[:pe_ver] || hosts.first['pe_ver'], '2016.4')
           #PE-20610 Do a generic install for old versions on windows that needs msi install because of PE-18351
@@ -678,6 +703,42 @@ module Beaker
           end
         end
 
+        # Run a plan on a host
+        # @param [Host] host The node to run the bolt plan on
+        # @param [String] plan The name of the plan
+        # @param [String] parameters Parameters to be passed into the bolt plan
+        def run_plan(host, plan, parameters)
+          bin_path = '/opt/puppetlabs/installer/bin'
+          module_path = '/opt/puppetlabs/installer/share/boltdir/site'
+          bolt_cmd = "#{bin_path}/bolt plan run #{plan} #{parameters} -m #{module_path} --no-host-key-check"
+          on host, bolt_cmd
+        end
+
+        # Run enterprise_tasks::split_upgrade plan on a host
+        # @param [Array<Host>] hosts Hosts to prepare
+        #@param [Hash{Symbol=>String}] opts Options to alter execution.
+        def run_split_upgrade_plan(hosts, opts = {})
+          pe_infrastructure = select_hosts({:roles => ['master', 'dashboard', 'database', 'pe_postgres']}, hosts)
+          non_infrastructure = hosts.reject{|host| pe_infrastructure.include? host}
+          prepare_hosts([master],opts)
+          register_feature_flags!(opts)
+          fetch_pe([master],opts)
+          configure_type_defaults_on([master])
+          prepare_host_installer_options(master)
+          cmd =  installer_cmd(master, opts)
+          install_prep_cmd = "#{cmd} -p"
+          on master, "#{install_prep_cmd}"
+          on master, "cd #{master[:working_dir]}; tar -zcPf #{master[:dist]}.tar #{master[:dist]}"
+          tarfile = "#{master[:working_dir]}/#{master[:dist]}.tar"
+          plan = 'enterprise_tasks::split_upgrade'
+          parameters = "tarball=#{tarfile}"
+          run_plan(master, plan, parameters)
+          if(non_infrastructure.size > 0)
+            install_agents_only_on(non_infrastructure, opts)
+            on master, 'puppet agent -t', :acceptable_exit_codes => [0,2]
+            run_puppet_on_non_infrastructure_nodes(non_infrastructure)
+          end
+        end
 
         # Configure the master to use a proxy and drop unproxied connections
         def config_master_for_proxy_access

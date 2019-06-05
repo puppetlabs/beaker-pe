@@ -1250,12 +1250,24 @@ describe ClassMixedWithDSLInstallUtils do
 
     it 'identifies an upgrade as generic' do
       hosts = [monolithic, agent, agent, agent]
+      allow(subject).to receive(:upgrade_plan_available?).and_return(false)
       expect(subject.determine_install_type(hosts, {:type => :upgrade})).to eq(:generic)
     end
 
     it 'identifies an upgrade with postgres as pe_managed_postgres' do
       hosts = [master, puppetdb, console, pe_postgres]
+      allow(subject).to receive(:upgrade_plan_available?).and_return(false)
       expect(subject.determine_install_type(hosts, {:type => :upgrade})).to eq(:pe_managed_postgres)
+    end
+    it 'identifies an upgrade on split as split_upgrade_plan' do
+      hosts = [master, puppetdb, console]
+      allow(subject).to receive(:upgrade_plan_available?).and_return(true)
+      expect(subject.determine_install_type(hosts, {:type => :upgrade})).to eq(:split_upgrade_plan)
+    end
+    it 'identifies an upgrade on mono+postgres as split_upgrade_plan' do
+      hosts = [master, pe_postgres]
+      allow(subject).to receive(:upgrade_plan_available?).and_return(true)
+      expect(subject.determine_install_type(hosts, {:type => :upgrade})).to eq(:split_upgrade_plan)
     end
 
     it 'identifies a legacy PE version as generic' do
@@ -2000,6 +2012,46 @@ describe ClassMixedWithDSLInstallUtils do
     it "calls prepare_hosts on all hosts instead of just master" do
       expect(subject).to receive(:prepare_hosts).with([monolithic] + [el_agent, el_agent, el_agent], {})
       subject.simple_monolithic_install(monolithic, [el_agent, el_agent, el_agent])
+    end
+  end
+
+  describe 'run_split_upgrade_plan' do
+    let(:monolithic) { make_host('monolithic',
+                                 :pe_ver => '2016.4',
+                                 :pe_upgrade_ver => '2018.9',
+                                 :platform => 'el-7-x86_64',
+                                 :roles => ['master', 'database', 'dashboard']) }
+    let(:pe_postgres) { make_host('pe_postgres',
+                                 :pe_ver => '2016.4',
+                                 :pe_upgrade_ver => '2018.9',
+                                 :platform => 'el-7-x86_64',
+                                 :roles => ['pe_postgres']) }
+    let(:agent) { make_host('agent',
+                            :pe_ver => '2016.4',
+                            :pe_upgrade_ver => '2018.9',
+                            :platform => 'el-7-x86_64',
+                            :roles => ['agent']) }
+    before :each do
+      allow(subject).to receive(:on)
+      allow(subject).to receive(:configure_type_defaults_on)
+      allow(subject).to receive(:prepare_hosts)
+      allow(subject).to receive(:fetch_pe)
+      allow(subject).to receive(:prepare_host_installer_options)
+      allow(subject).to receive(:install_agents_only_on)
+      allow(subject).to receive(:run_puppet_on_non_infrastructure_nodes).with([agent])
+      allow(subject).to receive(:installer_cmd).with(monolithic, anything()).and_return("prepare master")
+      allow(subject).to receive(:run_plan)
+      allow(subject).to receive(:installer_cmd).with(agent, anything()).and_return("install agent")
+      allow(subject).to receive(:stop_agent_on)
+    end
+
+    it 'runs the split upgrade plan on master' do
+      hosts = [monolithic, pe_postgres, agent]
+      allow( subject ).to receive(:hosts).and_return([monolithic, pe_postgres, agent])
+      allow(subject).to receive(:installer_cmd).with(monolithic, anything()).and_return("prepare master")
+      expect(subject).to receive(:run_plan).with(monolithic, "enterprise_tasks::split_upgrade", anything())
+      expect(subject).to receive(:install_agents_only_on).with([agent], opts)
+      subject.run_split_upgrade_plan(hosts, opts)
     end
   end
 
