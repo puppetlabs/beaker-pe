@@ -472,7 +472,7 @@ module Beaker
                 # If we are connecting through loadbalancer, download the agent tarballs to compile masters
                 if lb_connect_loadbalancer_exists?
                   hosts.each do |h|
-                    if h['roles'].include?('compile_master')
+                    if h['roles'].include?('compile_master') || h['roles'].include?('pe_compiler')
                       retry_on(h, puppet("agent -t"), retry_opts)
                     end
                   end
@@ -529,7 +529,7 @@ module Beaker
         # @api private
         def verify_vm_resources(hosts)
           logger.notify("Checking the status of system (CPU/Mem) resources on PE Infrastructure nodes.")
-          pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'dashboard', 'database']}, hosts)
+          pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'pe_compiler', 'dashboard', 'database']}, hosts)
           pe_infrastructure.each do |host|
             on host, "top -bn1", :accept_all_exit_codes => true
           end
@@ -1001,7 +1001,7 @@ module Beaker
         # Runs puppet on all nodes, unless they have the roles: master,database,console/dashboard
         # @param [Array<Host>] hosts The sorted hosts to install or upgrade PE on
         def run_puppet_on_non_infrastructure_nodes(all_hosts)
-          pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'dashboard', 'database']}, all_hosts)
+          pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'pe_compiler', 'dashboard', 'database']}, all_hosts)
           non_infrastructure = all_hosts.reject{|host| pe_infrastructure.include? host}
           on non_infrastructure, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
         end
