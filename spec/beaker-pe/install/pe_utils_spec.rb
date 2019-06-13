@@ -59,12 +59,13 @@ describe ClassMixedWithDSLInstallUtils do
   let(:lei_hosts)     { make_hosts( { :pe_ver => '3.0',
                                       :platform => 'linux',
                                       :roles => [ 'agent' ],
-                                      :type => 'pe'}, 4 ) }
+                                      :type => 'pe'}, 5 ) }
   let(:lb_test_hosts) { lei_hosts[0][:roles] = ['master', 'database', 'dashboard']
                         lei_hosts[1][:roles] = ['loadbalancer', 'lb_connect']
                         lei_hosts[2][:roles] = ['compile_master']
                         lei_hosts[3][:roles] = ['frictionless', 'lb_connect']
                         lei_hosts[3][:working_dir] = '/tmp'
+                        lei_hosts[4][:roles] = ['pe_compiler']
                         lei_hosts }
 
   let(:logger) do
@@ -1603,6 +1604,7 @@ describe ClassMixedWithDSLInstallUtils do
     let(:master) { make_host('master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
     let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
     let(:compile_master) { make_host('agent', :pe_ver => '2017.2', :roles => ['frictionless', 'compile_master']) }
+    let(:pe_compiler) { make_host('agent', :pe_ver => '2019.2', :roles => ['frictionless', 'pe_compiler']) }
     let(:dispatcher) { double('dispatcher') }
     let(:node_group) { { 'classes' => {} } }
 
@@ -1615,6 +1617,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(dispatcher).to receive(:get_node_group_by_name).and_return(node_group)
       allow(dispatcher).to receive(:create_new_node_group_model) {|model| node_group.update(model)}
       allow(subject).to receive(:compile_masters).and_return([compile_master])
+      allow(subject).to receive(:pe_compilers).and_return([pe_compiler])
     end
 
     it 'adds the right pe_repo class to the PE Master group' do
@@ -2283,6 +2286,9 @@ describe ClassMixedWithDSLInstallUtils do
     let(:compiler)      { make_host( 'compiler',     { :platform => 'linux',
                                                        :pe_ver   => '4.0',
                                                        :roles => ['agent', 'compile_master']})}
+    let(:pe_compiler)   { make_host( 'pe_compiler',  { :platform => 'linux',
+                                                       :pe_ver   => '4.0',
+                                                       :roles => ['agent', 'pe_compiler']})}
 
     it 'sorts hosts with common PE roles' do
       these_hosts = [master, db, console, agent1, frictionless]
@@ -2298,12 +2304,13 @@ describe ClassMixedWithDSLInstallUtils do
 
     # Possibly needed for NetDev and Scale testing
     it 'defaults to classifying custom roles as "agent only"' do
-      these_hosts = [monolith, compiler, agent1, agent2]
+      these_hosts = [monolith, compiler, pe_compiler, agent1, agent2]
       agent_only, non_agent = subject.create_agent_specified_arrays(these_hosts)
-      expect(agent_only.length).to be 3
+      expect(agent_only.length).to be 4
       expect(agent_only).to include(agent1)
       expect(agent_only).to include(agent2)
       expect(agent_only).to include(compiler)
+      expect(agent_only).to include(pe_compiler)
       expect(non_agent.length).to be 1
       expect(non_agent).to include(monolith)
     end
