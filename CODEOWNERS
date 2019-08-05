@@ -1,0 +1,4 @@
+#This Repository is maintained by both the beaker and installer teams, depending on the location of the changes
+* @puppetlabs/beaker
+/lib/beaker-pe/install @puppetlabs/installer-and-management
+/spec/beaker-pe/install @puppetlabs/installer-and-management
