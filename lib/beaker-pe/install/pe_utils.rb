@@ -223,6 +223,7 @@ module Beaker
         # @option opts [String]  :pe_ver Default PE version to install or upgrade to
         #                          (Otherwise uses individual hosts pe_ver)
         # @option opts [Boolean] :pe_debug (false) Should we run the installer in debug mode?
+        # @option opts [Boolean] :interactive (false) Should we run the installer in interactive mode?
         # @example
         #      on host, "#{installer_cmd(host, opts)} -a #{host['working_dir']}/answers"
         # @api private
@@ -241,7 +242,7 @@ module Beaker
           else
             pe_debug = host[:pe_debug] || opts[:pe_debug]  ? ' -D' : ''
             pe_cmd = "cd #{host['working_dir']}/#{host['dist']} && ./#{host['pe_installer']}#{pe_debug}"
-            if ! version_is_less(host['pe_ver'], '2016.2.1')
+            if ! version_is_less(host['pe_ver'], '2016.2.1') && ! opts[:interactive]
               # -y option sets "assume yes" mode where yes or whatever default will be assumed
               pe_cmd += " -y"
             end
