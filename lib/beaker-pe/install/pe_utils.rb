@@ -291,7 +291,8 @@ module Beaker
             if opts[:fetch_local_then_push_to_host]
               fetch_and_push_pe(host, path, filename, extension)
             else
-              on host, "cd #{host['working_dir']}; curl -O #{path}/#{filename}#{extension}"
+              curlopts = opts[:use_proxy] ? "--proxy #{opts[:proxy_hostname]}:3128" : ""
+              on host, "cd #{host['working_dir']}; curl -O #{path}/#{filename}#{extension} #{curlopts}"
             end
           end
         end
@@ -326,7 +327,8 @@ module Beaker
               fetch_and_push_pe(host, path, filename, extension)
               on host, "cd #{host['working_dir']}; chmod 644 #{filename}#{extension}"
             elsif host.is_cygwin?
-              on host, "cd #{host['working_dir']}; curl -O #{path}/#{filename}#{extension}"
+              curlopts = opts[:use_proxy] ? "--proxy #{opts[:proxy_hostname]}:3128" : ""
+              on host, "cd #{host['working_dir']}; curl -O #{path}/#{filename}#{extension} #{curlopts}"
             else
               on host, powershell("$webclient = New-Object System.Net.WebClient;  $webclient.DownloadFile('#{path}/#{filename}#{extension}','#{host['working_dir']}\\#{filename}#{extension}')")
             end
@@ -378,7 +380,8 @@ module Beaker
                 fetch_and_push_pe(host, path, filename, extension)
                 command_file_push = 'cat '
               else
-                command_file_push = "curl #{path}/"
+                curlopts = opts[:use_proxy] ? "--proxy #{opts[:proxy_hostname]}:3128 " : ""
+                command_file_push = "curl #{curlopts}#{path}/"
               end
               on host, "cd #{host['working_dir']}; #{command_file_push}#{filename}#{extension} | #{unpack}"
 
@@ -571,7 +574,7 @@ module Beaker
           verify_network_resources(hosts, options[:net_diag_hosts])
           verify_vm_resources(hosts)
           if opts[:use_proxy]
-            config_master_for_proxy_access
+            config_hosts_for_proxy_access(hosts - hosts_as('proxy'))
           end
           case install_type
           when :pe_managed_postgres
@@ -681,34 +684,46 @@ module Beaker
 
 
         # Configure the master to use a proxy and drop unproxied connections
-        def config_master_for_proxy_access
-          step "configuring master to use proxy" do
-            @osmirror_host = "osmirror.delivery.puppetlabs.net"
-            @osmirror_host_ip = IPSocket.getaddress(@osmirror_host)
-            @delivery_host = "enterprise.delivery.puppetlabs.net"
-            @delivery_host_ip = IPSocket.getaddress(@delivery_host)
-            @proxy_ip = @options[:proxy_ip]
-            @proxy_hostname = @options[:proxy_hostname]
-            @master_ip = on master, "hostname -I | tr '\n' ' '"
-            on master, "echo \"#{@proxy_ip}  #{@proxy_hostname}\" >> /etc/hosts"
-            on master, "echo \"#{@master_ip.stdout}  #{master.connection.vmhostname}\" >> /etc/hosts"
-            on master, "echo \"#{@osmirror_host_ip}    #{@osmirror_host}\" >> /etc/hosts"
-            on master, "echo \"#{@delivery_host_ip}    #{@delivery_host}\" >> /etc/hosts"
-            on master, "iptables -A OUTPUT -p tcp -d #{master.connection.vmhostname} -j ACCEPT"
-            # the next two lines clear the internal puppet lan
-            on master, "iptables -A OUTPUT -p tcp -d 10.16.0.0/16 -j ACCEPT"
-            on master, "iptables -A OUTPUT -p tcp -d 10.32.0.0/16 -j ACCEPT"
-            on master, "iptables -A OUTPUT -p tcp --dport 3128 -d #{@proxy_hostname} -j ACCEPT"
-            on master, "iptables -A OUTPUT -p tcp -d #{@osmirror_host_ip} -j DROP"
-            on master, "iptables -A OUTPUT -p tcp -d #{@delivery_host_ip} -j DROP"
-            on master, "iptables -P OUTPUT DROP"
-            on master, "curl --proxy #{@proxy_hostname}:3128 http://#{@osmirror_host}", :acceptable_exit_codes => [0]
-            on master, "curl -k https://#{@osmirror_host}", :acceptable_exit_codes => [1,7]
-            if master.host_hash[:platform].include?("ubuntu")
-              on master, "echo 'Acquire::http::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
-              on master, "echo 'Acquire::https::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
-            else
-              on master, "echo \"proxy=http://#{@proxy_hostname}:3128\" >> /etc/yum.conf"
+        def config_hosts_for_proxy_access hosts
+          hosts.each do |host|
+            step "Configuring #{host} to use proxy" do
+              @osmirror_host = "osmirror.delivery.puppetlabs.net"
+              @osmirror_host_ip = IPSocket.getaddress(@osmirror_host)
+              @delivery_host = "enterprise.delivery.puppetlabs.net"
+              @delivery_host_ip = IPSocket.getaddress(@delivery_host)
+              @proxy_ip = @options[:proxy_ip]
+              @proxy_hostname = @options[:proxy_hostname]
+              @master_ip = on master, "hostname -I | tr '\n' ' '"
+              on host, "echo \"#{@proxy_ip}  #{@proxy_hostname}\" >> /etc/hosts"
+              on host, "echo \"#{@master_ip.stdout}  #{master.connection.vmhostname}\" >> /etc/hosts"
+              on host, "echo \"#{@osmirror_host_ip}    #{@osmirror_host}\" >> /etc/hosts"
+              on host, "echo \"#{@delivery_host_ip}    #{@delivery_host}\" >> /etc/hosts"
+              on host, "iptables -A OUTPUT -p tcp -d #{master.connection.vmhostname} -j ACCEPT"
+              # Treat these two hosts as if they were outside the puppet lan
+              on host, "iptables -A OUTPUT -p tcp -d #{@osmirror_host_ip} -j DROP"
+              on host, "iptables -A OUTPUT -p tcp -d #{@delivery_host_ip} -j DROP"
+              # The next two lines clear the rest of the internal puppet lan
+              on host, "iptables -A OUTPUT -p tcp -d 10.16.0.0/16 -j ACCEPT"
+              on host, "iptables -A OUTPUT -p tcp -d 10.32.0.0/16 -j ACCEPT"
+
+              #Platform9
+              on host, "iptables -A OUTPUT -p tcp -d 10.234.0.0/16 -j ACCEPT"
+
+              #Local network
+              on host, "iptables -A OUTPUT -p tcp -d 10.0.25.0/16 -j ACCEPT"
+
+              on host, "iptables -A OUTPUT -p tcp --dport 3128 -d #{@proxy_hostname} -j ACCEPT"
+              on host, "iptables -P OUTPUT DROP"
+              # Verify we can reach osmirror via the proxy
+              on host, "curl --proxy #{@proxy_hostname}:3128 http://#{@osmirror_host}", :acceptable_exit_codes => [0]
+              # Verify we can't reach it without the proxy
+              on host, "curl -k http://#{@osmirror_host} -m 5", :acceptable_exit_codes => [28]
+              if host.host_hash[:platform].include?("ubuntu")
+                on host, "echo 'Acquire::http::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
+                on host, "echo 'Acquire::https::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
+              else
+                on host, "echo \"proxy=http://#{@proxy_hostname}:3128\" >> /etc/yum.conf"
+              end
             end
           end
         end
