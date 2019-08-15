@@ -934,6 +934,7 @@ module Beaker
                 host['dist'] = "puppet-enterprise-#{version}"
               end
             end
+            host['dist'] = "puppet-enterprise-#{version}-#{host['packaging_platform']}" if host['packaging_platform'] =~ /redhatfips/
             host['working_dir'] = host.tmpdir(Time.new.strftime("%Y-%m-%d_%H.%M.%S"))
           end
         end
