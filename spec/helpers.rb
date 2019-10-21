@@ -26,6 +26,7 @@ end
 
 module HostHelpers
   HOST_DEFAULTS = { :platform => 'unix',
+                    :packaging_platform => 'unix',
                     :roles => ['agent'],
                     :snapshot => 'snap',
                     :ip => 'default.ip.address',
