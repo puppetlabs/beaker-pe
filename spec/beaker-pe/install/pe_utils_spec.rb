@@ -1371,7 +1371,7 @@ describe ClassMixedWithDSLInstallUtils do
     let(:split_master) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'agent']) }
     let(:split_database) { make_host('split_database', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['database', 'agent']) }
     let(:split_console) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['dashboard', 'agent']) }
-    let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['agent'])}
+    let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :packaging_platform => 'el-7-x86_64', :roles => ['agent'])}
 
     it 'will do a monolithic installation of PE with an external postgres that is managed by PE' do
       allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
@@ -1602,7 +1602,7 @@ describe ClassMixedWithDSLInstallUtils do
 
   describe '#deploy_frictionless_to_master' do
     let(:master) { make_host('master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
-    let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
+    let(:agent) { make_host('agent', :pe_ver => '2017.2', :platform => 'el-7-x86_64', :packaging_platform => 'el-7-x86_64', :roles => ['frictionless']) }
     let(:compile_master) { make_host('agent', :pe_ver => '2017.2', :roles => ['frictionless', 'compile_master']) }
     let(:pe_compiler) { make_host('agent', :pe_ver => '2019.2', :roles => ['frictionless', 'pe_compiler']) }
     let(:dispatcher) { double('dispatcher') }
@@ -1972,9 +1972,9 @@ describe ClassMixedWithDSLInstallUtils do
   end
 
   describe 'simple_monolithic_install' do
-    let(:monolithic) { make_host('monolithic', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => [ 'master', 'database', 'dashboard' ]) }
-    let(:el_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
-    let(:deb_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'debian-7-x86_64', :roles => ['frictionless']) }
+    let(:monolithic) { make_host('monolithic', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :packaging_platform => 'el-7-x86_64', :roles => [ 'master', 'database', 'dashboard' ]) }
+    let(:el_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :packaging_platform => 'el-7-86_64', :roles => ['frictionless']) }
+    let(:deb_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'debian-7-x86_64', :packaging_platform => 'debian-7-x86_64', :roles => ['frictionless']) }
 
     before :each do
       allow(subject).to receive(:on)
@@ -2010,10 +2010,12 @@ describe ClassMixedWithDSLInstallUtils do
     let(:monolithic) { make_host('monolithic',
                                  :pe_ver => '2016.4',
                                  :platform => 'el-7-x86_64',
+                                 :packaging_platform => 'el-7-x86_64',
                                  :roles => ['master', 'database', 'dashboard']) }
     let(:agent) { make_host('agent',
                             :pe_ver => '2016.4',
                             :platform => 'el-7-x86_64',
+                            :packaging_platform => 'el-7-x86_64',
                             :roles => ['frictionless']) }
     before :each do
       allow(subject).to receive(:on)
@@ -2032,6 +2034,7 @@ describe ClassMixedWithDSLInstallUtils do
 
     it 'calls deploy_frictionless_to_master if agent platform is different from master' do
       agent['platform'] = 'deb-7-x86_64'
+      agent['packaging_platform'] = 'deb-7-x86_64'
       expect(subject).to receive(:deploy_frictionless_to_master)
       subject.install_agents_only_on([agent], opts)
     end
