@@ -805,7 +805,7 @@ module Beaker
               if host['roles'].include?('frictionless') &&  (! version_is_less(version, '3.2.0'))
                 # If We're *not* running the classic installer, we want
                 # to make sure the master has packages for us.
-                if host['platform'] != master['platform'] # only need to do this if platform differs
+                if host['packaging_platform'] != master['packaging_platform'] # only need to do this if platform differs
                   deploy_frictionless_to_master(host)
                 end
                 install_ca_cert_on(host, opts)
@@ -1899,7 +1899,7 @@ module Beaker
                agent_nodes.each do |agent|
                  # If We're *not* running the classic installer, we want
                  # to make sure the master has packages for us.
-                 if agent['platform'] != master['platform'] # only need to do this if platform differs
+                 if agent['packaging_platform'] != master['packaging_platform'] # only need to do this if platform differs
                    deploy_frictionless_to_master(agent)
                  end
                end
