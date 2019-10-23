@@ -536,6 +536,7 @@ module Beaker
           pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'pe_compiler', 'dashboard', 'database']}, hosts)
           pe_infrastructure.each do |host|
             on host, "top -bn1", :accept_all_exit_codes => true
+            on host, "vmstat 1 1", :accept_all_exit_codes => true
           end
         end
 
