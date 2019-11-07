@@ -692,25 +692,45 @@ module Beaker
               @osmirror_host_ip = IPSocket.getaddress(@osmirror_host)
               @delivery_host = "enterprise.delivery.puppetlabs.net"
               @delivery_host_ip = IPSocket.getaddress(@delivery_host)
+              @test_forge_host = "api-forge-aio02-petest.puppet.com"
+              @test_forge_host_ip = IPSocket.getaddress(@test_forge_host)
+              @github_host = "github.com"
+              @github_host_ip = IPSocket.getaddress(@github_host)
               @proxy_ip = @options[:proxy_ip]
               @proxy_hostname = @options[:proxy_hostname]
-              @master_ip = on master, "hostname -I | tr '\n' ' '"
+
+              #sles does not support the -I all-ip-addresses flag
+              hostname_flag = host.host_hash[:platform].include?("sles") ? '-i' : '-I'
+              @master_ip = on master, "hostname #{hostname_flag} | tr '\n' ' '"
+
               on host, "echo \"#{@proxy_ip}  #{@proxy_hostname}\" >> /etc/hosts"
               on host, "echo \"#{@master_ip.stdout}  #{master.connection.vmhostname}\" >> /etc/hosts"
               on host, "echo \"#{@osmirror_host_ip}    #{@osmirror_host}\" >> /etc/hosts"
               on host, "echo \"#{@delivery_host_ip}    #{@delivery_host}\" >> /etc/hosts"
+              on host, "echo \"#{@test_forge_host_ip}    #{@test_forge_host}\" >> /etc/hosts"
+              on host, "echo \"#{@github_host_ip}    #{@github_host}\" >> /etc/hosts"
+
               on host, "iptables -A OUTPUT -p tcp -d #{master.connection.vmhostname} -j ACCEPT"
-              # Treat these two hosts as if they were outside the puppet lan
+              # Treat these hosts as if they were outside the puppet lan
               on host, "iptables -A OUTPUT -p tcp -d #{@osmirror_host_ip} -j DROP"
               on host, "iptables -A OUTPUT -p tcp -d #{@delivery_host_ip} -j DROP"
+              on host, "iptables -A OUTPUT -p tcp -d #{@test_forge_host_ip} -j DROP"
               # The next two lines clear the rest of the internal puppet lan
               on host, "iptables -A OUTPUT -p tcp -d 10.16.0.0/16 -j ACCEPT"
               on host, "iptables -A OUTPUT -p tcp -d 10.32.0.0/16 -j ACCEPT"
+              # This allows udp on a port bundler requires
+              on host, 'iptables -A OUTPUT -p udp -m udp --dport 53 -j ACCEPT'
+              # Next two lines allow host to access itself via localhost or 127.0.0.1
+              on host, 'iptables -A INPUT -i lo -j ACCEPT'
+              on host, 'iptables -A OUTPUT -o lo -j ACCEPT'
+
+              #Opens up port that git uses
+              on host, "iptables -A OUTPUT -p tcp -d #{@github_host_ip} -j ACCEPT"
+              on host, "iptables -A INPUT -p tcp -d #{@github_host_ip} --dport 9143 -j ACCEPT"
 
               #Platform9
               on host, "iptables -A OUTPUT -p tcp -d 10.234.0.0/16 -j ACCEPT"
-
-              #Local network
+              #enterprise.delivery.puppetlabs.net network, required if running from your work laptop over the network
               on host, "iptables -A OUTPUT -p tcp -d 10.0.25.0/16 -j ACCEPT"
 
               on host, "iptables -A OUTPUT -p tcp --dport 3128 -d #{@proxy_hostname} -j ACCEPT"
@@ -718,12 +738,28 @@ module Beaker
               # Verify we can reach osmirror via the proxy
               on host, "curl --proxy #{@proxy_hostname}:3128 http://#{@osmirror_host}", :acceptable_exit_codes => [0]
               # Verify we can't reach it without the proxy
+
               on host, "curl -k http://#{@osmirror_host} -m 5", :acceptable_exit_codes => [28]
               if host.host_hash[:platform].include?("ubuntu")
                 on host, "echo 'Acquire::http::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
                 on host, "echo 'Acquire::https::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
+              elsif host.host_hash[:platform].include?("sles")
+                on host, 'rm /etc/sysconfig/proxy'
+                on host, 'echo "PROXY_ENABLED=\"yes\"" >> /etc/sysconfig/proxy'
+                on host, "echo 'HTTP_PROXY=\"http://#{@proxy_hostname}:3128\"' >> /etc/sysconfig/proxy"
+                on host, "echo 'HTTPS_PROXY=\"http://#{@proxy_hostname}:3128\"' >> /etc/sysconfig/proxy"
+                #Needs to not use proxy on the host itself, and master (in order to download the agent)
+                no_proxy_list="localhost,127.0.0.1,#{host.hostname},#{master.hostname}"
+                if any_hosts_as?('compile_master')
+                  no_proxy_list.concat(",#{compile_master}")
+                end
+                on host, "echo \"NO_PROXY='#{no_proxy_list}'\" >> /etc/sysconfig/proxy"
               else
-                on host, "echo \"proxy=http://#{@proxy_hostname}:3128\" >> /etc/yum.conf"
+                #Hacky work around until we configure puppet_enteprise::repo::config to set proxy=_none_ in the puppet_enteprrise.repo
+                repo_list = on(host, "ls /etc/yum.repos.d/").output.strip.split("\n")
+                repo_list.each do |repo|
+                  on host, "echo \"proxy=http://#{@proxy_hostname}:3128\" >> /etc/yum.repos.d/#{repo}"
+                end
               end
             end
           end

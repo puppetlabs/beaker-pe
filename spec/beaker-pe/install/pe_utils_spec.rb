@@ -1190,7 +1190,7 @@ describe ClassMixedWithDSLInstallUtils do
       path = machost['pe_dir']
       filename = "#{ machost['dist'] }"
       extension = '.dmg'
-      expect( subject ).to receive( :on ).with( machost, "cd #{ machost['working_dir'] }; curl -O #{ path }/#{ filename }#{ extension }" ).once
+      expect( subject ).to receive( :on ).with( machost, "cd #{ machost['working_dir'] }; curl -O #{ path }/#{ filename }#{ extension } " ).once
       subject.fetch_pe( [machost], {} )
     end
 
