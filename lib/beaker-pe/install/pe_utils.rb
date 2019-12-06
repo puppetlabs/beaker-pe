@@ -738,9 +738,11 @@ module Beaker
               on host, "curl --proxy #{@proxy_hostname}:3128 http://#{@osmirror_host}", :acceptable_exit_codes => [0]
               # Verify we can't reach it without the proxy
               on host, "curl -k http://#{@osmirror_host} -m 5", :acceptable_exit_codes => [28]
+              # For ubuntu we configure Apt to use a proxy globally
               if host.host_hash[:platform].include?("ubuntu")
                 on host, "echo 'Acquire::http::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
                 on host, "echo 'Acquire::https::Proxy \"http://'#{@proxy_hostname}':3128/\";' >> /etc/apt/apt.conf"
+              # For SLES we configure ENV variables to use a proxy, then set no_proxy on master and possible CM
               elsif host.host_hash[:platform].include?("sles")
                 on host, 'rm /etc/sysconfig/proxy'
                 on host, 'echo "PROXY_ENABLED=\"yes\"" >> /etc/sysconfig/proxy'
@@ -752,12 +754,9 @@ module Beaker
                   no_proxy_list.concat(",#{compile_master}")
                 end
                 on host, "echo \"NO_PROXY='#{no_proxy_list}'\" >> /etc/sysconfig/proxy"
+              # For Redhat/Centos we configre Yum globally to use a proxy
               else
-                #Hacky work around until we configure puppet_enteprise::repo::config to set proxy=_none_ in the puppet_enteprrise.repo
-                repo_list = on(host, "ls /etc/yum.repos.d/").output.strip.split("\n")
-                repo_list.each do |repo|
-                  on host, "echo \"proxy=http://#{@proxy_hostname}:3128\" >> /etc/yum.repos.d/#{repo}"
-                end
+                on host, "echo 'proxy=http://#{@proxy_hostname}:3128' >> /etc/yum.conf"
               end
             end
           end
