@@ -646,29 +646,6 @@ describe ClassMixedWithDSLInstallUtils do
     def slice_installer_options(host)
       host.host_hash.select { |k,v| [ :pe_installer_conf_file, :pe_installer_conf_setting].include?(k) }
     end
-
-    context 'when version < 2016.2.0' do
-      let(:pe_ver) { '3.8.5' }
-
-      it 'sets legacy settings' do
-        expect(slice_installer_options(host)).to eq(legacy_settings)
-      end
-    end
-
-    context 'when version >= 2016.2.0' do
-      let (:pe_ver) { '2016.2.0' }
-
-      it 'test use_meep?' do
-        expect(subject.use_meep?('3.8.5')).to eq(false)
-        expect(subject.use_meep?('2016.1.2')).to eq(false)
-        expect(subject.use_meep?('2016.2.0')).to eq(true)
-        expect(subject.use_meep?('2016.2.0-rc1-gabcdef')).to eq(true)
-      end
-
-      it 'sets meep settings' do
-        expect(slice_installer_options(host)).to eq(meep_settings)
-      end
-    end
   end
 
   RSpec.shared_examples 'test flag' do |flag_name|

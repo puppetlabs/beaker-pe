@@ -1580,7 +1580,8 @@ module Beaker
               configure_type_defaults_on(host)
               prepare_host_installer_options(host)
 
-              unless is_upgrade
+              # On upgrade we don't want to update the postgre's pe.conf
+              unless (is_upgrade && host['roles'].include?('pe_postgres'))
                 setup_pe_conf(host, hosts, opts)
               end
             end
