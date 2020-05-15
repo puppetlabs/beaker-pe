@@ -292,7 +292,7 @@ module Beaker
               fetch_and_push_pe(host, path, filename, extension)
             else
               curlopts = opts[:use_proxy] ? " --proxy #{opts[:proxy_hostname]}:3128" : ""
-              on host, "cd #{host['working_dir']}; curl -O #{path}/#{filename}#{extension}#{curlopts}"
+              on host, "cd #{host['working_dir']}; curl -L -O #{path}/#{filename}#{extension}#{curlopts}"
             end
           end
         end
@@ -328,7 +328,7 @@ module Beaker
               on host, "cd #{host['working_dir']}; chmod 644 #{filename}#{extension}"
             elsif host.is_cygwin?
               curlopts = opts[:use_proxy] ? " --proxy #{opts[:proxy_hostname]}:3128" : ""
-              on host, "cd #{host['working_dir']}; curl -O #{path}/#{filename}#{extension}#{curlopts}"
+              on host, "cd #{host['working_dir']}; curl -L -O #{path}/#{filename}#{extension}#{curlopts}"
             else
               on host, powershell("$webclient = New-Object System.Net.WebClient;  $webclient.DownloadFile('#{path}/#{filename}#{extension}','#{host['working_dir']}\\#{filename}#{extension}')")
             end
@@ -381,7 +381,7 @@ module Beaker
                 command_file_push = 'cat '
               else
                 curlopts = opts[:use_proxy] ? "--proxy #{opts[:proxy_hostname]}:3128 " : ""
-                command_file_push = "curl #{curlopts}#{path}/"
+                command_file_push = "curl -L #{curlopts}#{path}/"
               end
               on host, "cd #{host['working_dir']}; #{command_file_push}#{filename}#{extension} | #{unpack}"
 
