@@ -1091,7 +1091,7 @@ describe ClassMixedWithDSLInstallUtils do
       path = unixhost['pe_dir']
       filename = "#{ unixhost['dist'] }"
       extension = '.tar'
-      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; curl #{ path }/#{ filename }#{ extension } | tar -xvf -" ).once
+      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; curl -L #{ path }/#{ filename }#{ extension } | tar -xvf -" ).once
       subject.fetch_pe( [unixhost], {} )
     end
 
@@ -1121,7 +1121,7 @@ describe ClassMixedWithDSLInstallUtils do
       path = unixhost['pe_dir']
       filename = "#{ unixhost['dist'] }"
       extension = '.tar.gz'
-      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; curl #{ path }/#{ filename }#{ extension } | gunzip | tar -xvf -" ).once
+      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; curl -L #{ path }/#{ filename }#{ extension } | gunzip | tar -xvf -" ).once
       subject.fetch_pe( [unixhost], {} )
     end
 
@@ -1167,7 +1167,7 @@ describe ClassMixedWithDSLInstallUtils do
       path = machost['pe_dir']
       filename = "#{ machost['dist'] }"
       extension = '.dmg'
-      expect( subject ).to receive( :on ).with( machost, "cd #{ machost['working_dir'] }; curl -O #{ path }/#{ filename }#{ extension }" ).once
+      expect( subject ).to receive( :on ).with( machost, "cd #{ machost['working_dir'] }; curl -L -O #{ path }/#{ filename }#{ extension }" ).once
       subject.fetch_pe( [machost], {} )
     end
 
