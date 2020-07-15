@@ -661,7 +661,7 @@ module Beaker
           register_feature_flags!(opts)
           generate_installer_conf_file_for(master, all_hosts, opts)
           step "Install PE on master" do
-            on master, installer_cmd(master, opts)
+            on master, installer_cmd(master, opts) if master['template'] !~ /-preload/
           end
 
           step "Stop agent on master" do
