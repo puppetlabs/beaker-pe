@@ -47,6 +47,15 @@ module Beaker
               else
                 install_dev_repos_on(product, host, directory, '/tmp/repo_configs',{:dev_builds_url => opts[:dev_builds_url]})
                 host.install_package('pe-client-tools')
+                if host['platform'] =~ /cisco|centos|redhat|eos|sles|el-|fedora-(2[2-9]|3[0-9])/
+                  host.exec(Command.new('rpm -q pe-client-tools')) do |command|
+                    raise "Wanted version not installed." unless command.stdout =~ /-#{opts[:pe_client_tools_version]}/
+                  end
+                elsif host['platform'] =~ /ubuntu|debian|cumulus|huaweios/
+                  host.exec(Command.new("apt-cache policy pe-client-tools | sed -n -e 's/Installed: //p'")) do |command|
+                    raise "Wanted version not installed." unless command.stdout =~ /-#{opts[:pe_client_tools_version]}/
+                  end
+                end
             end
           end
         end
