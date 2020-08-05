@@ -1621,6 +1621,13 @@ describe ClassMixedWithDSLInstallUtils do
       subject.do_install([])
     end
 
+    it 'chooses to do a simple monolithic install with preload when appropriate' do
+      expect(subject).to receive(:simple_monolithic_install_with_preload)
+      allow(subject).to receive(:determine_install_type).and_return(:simple_monolithic_install_with_preload)
+
+      subject.do_install([])
+    end
+
     it 'can perform a simple installation' do
       expect(subject).to receive(:get_mco_setting).and_return({})
       allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
