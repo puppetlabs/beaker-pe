@@ -6,7 +6,6 @@ require "beaker-answers"
 require "timeout"
 require "json"
 require "deep_merge"
-
 module Beaker
   module DSL
     module InstallUtils
@@ -582,6 +581,8 @@ module Beaker
             do_install_pe_with_pe_managed_external_postgres(hosts,opts)
           when :simple_monolithic
             simple_monolithic_install(hosts.first, hosts.drop(1), opts)
+          when :simple_monolithic_install_with_preload
+            simple_monolithic_install_with_preload(hosts.first, hosts.drop(1), opts)
           when :simple_split
             # This isn't implemented yet, so just do a generic install instead
             #simple_split_install(hosts, opts)
@@ -628,7 +629,11 @@ module Beaker
 
           mono_roles = ['master', 'database', 'dashboard']
           if has_all_roles?(hosts.first, mono_roles) && hosts.drop(1).all? {|host| host['roles'].include?('frictionless')}
-            :simple_monolithic
+            if hosts.first['template'] =~ /-preload/ && opts[:type] != :upgrade
+              :simple_monolithic_install_with_preload
+            else
+              :simple_monolithic
+            end
           elsif hosts[0]['roles'].include?('master') && hosts[1]['roles'].include?('database') && hosts[2]['roles'].include?('dashboard') && hosts.drop(3).all? {|host| host['roles'].include?('frictionless')}
             :simple_split
           elsif hosts.any? {|host| host['roles'].include?('pe_postgres')}
@@ -661,7 +666,7 @@ module Beaker
           register_feature_flags!(opts)
           generate_installer_conf_file_for(master, all_hosts, opts)
           step "Install PE on master" do
-            on master, installer_cmd(master, opts) if master['template'] !~ /-preload/
+            on master, installer_cmd(master, opts)
           end
 
           step "Stop agent on master" do
@@ -683,6 +688,37 @@ module Beaker
           end
         end
 
+        # Configure PE on a monolithic master and some number of frictionless agents if a node is using a PE preloaded image for the master node.
+        # @param [Host] master The node to configure the master on
+        # @param [Array<Host>] agents The nodes to install agents on
+        # @param [Hash{Symbol=>Symbol, String}] opts The options for how to install or upgrade PE
+        #
+        # @example
+        #   simple_monolithic_install_with_preload(master, agents, {:type => :install, :pe_ver => '2017.2.0'})
+        #
+        # @return nil
+        #
+        # @api private
+        def simple_monolithic_install_with_preload(master, agents, opts={})
+          step "Performing a standard monolithic install with frictionless agents on a preloaded image"
+          all_hosts = [master, *agents]
+          configure_type_defaults_on([master])
+
+          # Set PE distribution on the agents, creates working directories
+          prepare_hosts(all_hosts, opts)
+          register_feature_flags!(opts)
+          generate_installer_conf_file_for(master, all_hosts, opts)
+
+          step "Stop agent on master" do
+            stop_agent_on(master)
+          end
+
+          if manage_puppet_service?(master[:pe_ver], options)
+            configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
+          end
+
+          install_agents_only_on(agents, opts)
+        end
 
         # Configure the master to use a proxy and drop unproxied connections
         def config_hosts_for_proxy_access hosts
