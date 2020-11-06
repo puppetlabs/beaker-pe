@@ -70,10 +70,10 @@ you'd like to provide your own hosts file, set the `CONFIG` environment variable
 # Release
 
 To release new versions, we use a
-[Jenkins job](https://cinext-jenkinsmaster-sre-prod-1.delivery.puppetlabs.net/job/qe_beaker-pe-gem_init-multijob_master/)
+[Jenkins job](https://cinext-jenkinsmaster-sre-prod-1.delivery.puppetlabs.net/job/qe_beaker-pe-gem_init-multijob_main/)
 (access to internal infrastructure will be required to view job).
 
-To release a new version (from the master branch), you'll need to just provide
+To release a new version (from the main branch), you'll need to just provide
 a new beaker-pe version number to the job, and you're off to the races.
 
 # Questions
