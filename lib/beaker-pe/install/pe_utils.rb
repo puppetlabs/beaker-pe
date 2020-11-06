@@ -1047,7 +1047,11 @@ module Beaker
           facts_result = on(master, 'puppet facts')
           raise ArgumentError, fail_message if facts_result.exit_code != 0
           facts_hash = JSON.parse(facts_result.stdout.chomp)
-          puppet_agent_version = facts_hash['values']['aio_agent_version']
+          # In Puppet 7, facts are at the top level of the hash. Before that
+          # version, they were wrapped inside a `values` key. Since we're
+          # trying to determine the agent version here, we can't just switch
+          # our behavior by agent version, so we check both possible locations.
+          puppet_agent_version = facts_hash['aio_agent_version'] || facts_hash.dig('values', 'aio_agent_version')
           raise ArgumentError, fail_message if puppet_agent_version.nil?
           logger.warn("#{log_prefix} Read puppet-agent version #{puppet_agent_version} from master")
           # saving so that we don't have to query the master more than once
