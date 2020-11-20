@@ -184,6 +184,12 @@ module Beaker
           pe_debug = host[:pe_debug] || opts[:pe_debug] ? ' -x' : ''
           use_puppet_ca_cert = host[:use_puppet_ca_cert] || opts[:use_puppet_ca_cert]
 
+          # PE 2019.8.3 had a bug in the frictionless install of osx-10.14 and osx-10.15
+          # We need to do a bit of a hacky process to install the agent
+          if host['platform'] =~ /osx-10\.1(4|5)/ && (pe_version.eql?('2019.8.3') || pe_version.eql?('2019.8.4'))
+            return "curl -kO https://#{downloadhost}:8140/packages/current/#{host['platform']}.bash && bash #{host['platform']}.bash"
+          end
+
           if host['platform'] =~ /windows/ then
             if use_puppet_ca_cert
               frictionless_install_opts << '-UsePuppetCA'
