@@ -731,12 +731,16 @@ module Beaker
           hosts.each do |host|
             step "Configuring #{host} to use proxy" do
               @osmirror_host = "osmirror.delivery.puppetlabs.net"
+              puts "Grabbing IP for osmirror.delivery.puppetlabs.net"
               @osmirror_host_ip = IPSocket.getaddress(@osmirror_host)
               @delivery_host = "artifactory.delivery.puppetlabs.net"
+              puts "Grabbing IP for artifactory.delivery.puppetlabs.net"
               @delivery_host_ip = IPSocket.getaddress(@delivery_host)
               @test_forge_host = "api-forge-aio02-petest.puppet.com"
+              puts "Grabbing IP for api-forge-aio02-petest.puppet.com"
               @test_forge_host_ip = IPSocket.getaddress(@test_forge_host)
               @github_host = "github.com"
+              puts "Grabbing IP for github.com"
               @github_host_ip = IPSocket.getaddress(@github_host)
               @proxy_ip = @options[:proxy_ip]
               @proxy_hostname = @options[:proxy_hostname]
