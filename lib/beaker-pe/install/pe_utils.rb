@@ -761,6 +761,9 @@ module Beaker
               on host, "iptables -A OUTPUT -p tcp -d #{@osmirror_host_ip} -j DROP"
               on host, "iptables -A OUTPUT -p tcp -d #{@delivery_host_ip} -j DROP"
               on host, "iptables -A OUTPUT -p tcp -d #{@test_forge_host_ip} -j DROP"
+              # The next two lines are for our production and test k8s test runners
+              on host, "iptables -A OUTPUT -p tcp -d 10.236.112.0/20 -j ACCEPT"
+              on host, "iptables -A OUTPUT -p tcp -d 10.220.0.0/16 -j ACCEPT"
               # The next two lines clear the rest of the internal puppet lan
               on host, "iptables -A OUTPUT -p tcp -d 10.16.0.0/16 -j ACCEPT"
               on host, "iptables -A OUTPUT -p tcp -d 10.32.0.0/16 -j ACCEPT"
