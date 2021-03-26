@@ -263,7 +263,7 @@ describe ClassMixedWithDSLInstallUtils do
       expecting = [
         "FRICTIONLESS_TRACE='true'",
         "export FRICTIONLESS_TRACE",
-        "cd /tmp && curl -O --tlsv1 https://testmaster:8140/packages/current/install.bash && bash install.bash"
+        "cd /tmp && curl -O --tlsv1 -k https://testmaster:8140/packages/current/install.bash && bash install.bash"
       ].join("; ")
 
       expect( subject.frictionless_agent_installer_cmd( host, {}, '2016.4.0' ) ).to eq(expecting)
