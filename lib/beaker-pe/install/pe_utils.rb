@@ -190,6 +190,12 @@ module Beaker
             return "curl -kO https://#{downloadhost}:8140/packages/current/#{host['platform']}.bash && bash #{host['platform']}.bash"
           end
 
+          # PE 2019.8.5 has an issue with the GPG key that does not allow el-5 and sles-11 to install the puppet-agent
+          if host['platform'] =~ /(el-5)|(sles-11)/ && pe_version.eql?('2019.8.5')
+            on(host, "curl --remote-name --location http://yum.puppet.com/RPM-GPG-KEY-puppet-20250406")
+            on(host, "rpm --import RPM-GPG-KEY-puppet-20250406")
+          end
+
           if host['platform'] =~ /windows/ then
             if use_puppet_ca_cert
               frictionless_install_opts << '-UsePuppetCA'
