@@ -484,6 +484,12 @@ module Beaker
                 }
                 retry_on(master, puppet("agent -t"), retry_opts)
 
+                # GPG key expired and we need to add in an 'trusted' fact for debian repos on older PE versions
+                if version_is_less(host[:pe_ver], '2019.8.6') && host['platform'] =~ /(debian)|(ubuntu)/
+                  on(master, 'sed -i \'s/echo "deb ${t_deb_source?}"/echo "deb [trusted=yes] ${t_deb_source?}"/\' /opt/puppetlabs/puppet/modules/pe_repo/templates/deb.bash.erb')
+                  retry_on(master, puppet("agent -t"), retry_opts)
+                end
+
                 # If we are connecting through loadbalancer, download the agent tarballs to compile masters
                 if lb_connect_loadbalancer_exists?
                   hosts.each do |h|
