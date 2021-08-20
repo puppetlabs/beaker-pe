@@ -422,12 +422,12 @@ module Beaker
           end
 
           if (host['roles'].include?('master') || host['roles'].include?('pe_postgres')) && version_is_less(host[:pe_ver], '2019.8.5') && hosts.any? {|agent| agent['platform'] =~ /(debian)|(ubuntu)|(sles)/}
-            on(master, "rm -f #{path_to_gpg_key}")
-            on(master, "curl #{gpg_url} --output #{path_to_gpg_key}")
+            on(host, "rm -f #{path_to_gpg_key}")
+            on(host, "curl #{gpg_url} --output #{path_to_gpg_key}")
             if location == 'pe_repo'
               gpg_key_overwrite(host, 'pe_repo_env')
             elsif location == 'pe_repo_env'
-              on master, puppet('agent -t'), :acceptable_exit_codes => [0,2]
+              on host, puppet('agent -t'), :acceptable_exit_codes => [0,2]
             end
           end
         end
@@ -2029,7 +2029,9 @@ module Beaker
                end
              end
 
-             gpg_key_overwrite(master, 'pe_repo')
+             if hosts.any? {|host| host['roles'].include?('pe_postgres')}
+               gpg_key_overwrite(pe_postgres, 'pe_repo')
+             end
 
              step "Install agents" do
                block_on(agent_nodes, {:run_in_parallel => true}) do |host|
