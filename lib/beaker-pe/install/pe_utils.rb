@@ -368,9 +368,11 @@ module Beaker
             scp_to host, "#{path}/#{filename}#{extension}", "#{host['working_dir']}/#{filename}#{extension}"
             if extension =~ /gz/
               on host, "cd #{host['working_dir']}; gunzip #{filename}#{extension}"
+              gpg_key_overwrite(host, 'tarball')
             end
             if extension =~ /tar/
               on host, "cd #{host['working_dir']}; tar -xvf #{filename}.tar"
+              gpg_key_overwrite(host, 'tarball')
             end
           else
             if host['platform'] =~ /eos/
@@ -395,7 +397,37 @@ module Beaker
                 command_file_push = "curl -L #{curlopts}#{path}/"
               end
               on host, "cd #{host['working_dir']}; #{command_file_push}#{filename}#{extension} | #{unpack}"
+              gpg_key_overwrite(host, 'tarball')
+            end
+          end
+        end
 
+        #PE-32680, GPG expired on older PE versions, need to update with a new GPG key on the primary server
+        #only affects PE versions 2019.8.4 and earlier, and only needed for debian, ubuntu, and sles agent platforms
+        # @param [Host] host to see if we need to update the gpg key
+        # @param [String] location of the GPG key we intend to overwrite
+        # If someone is using this gem and is not on the PE private network, they need to download the new private GPG key and host
+        # it somewhere, then set the URL as an enviromental variable GPG_URL.
+        def gpg_key_overwrite(host, location)
+          gpg_url = ENV['GPG_URL'] || 'https://artifactory.delivery.puppetlabs.net/artifactory/generic__local/extended_gpg_key.asc'
+          case location
+          when 'tarball'
+            path_to_gpg_key = "#{host['working_dir']}/#{host['dist']}/packages/GPG-KEY-puppet"
+          when 'pe_repo'
+            path_to_gpg_key = '/opt/puppetlabs/puppet/modules/pe_repo/files/GPG-KEY-puppet'
+          when 'pe_repo_env'
+            path_to_gpg_key = '/opt/puppetlabs/server/data/environments/enterprise/modules/pe_repo/files/GPG-KEY-puppet'
+          else
+            raise(StandardError, "gpg_key_overwrite requires a valid location: tarball, or pe_repo. #{location} was supplied")
+          end
+
+          if (host['roles'].include?('master') || host['roles'].include?('pe_postgres')) && version_is_less(host[:pe_ver], '2019.8.5') && hosts.any? {|agent| agent['platform'] =~ /(debian)|(ubuntu)|(sles)/}
+            on(master, "rm -f #{path_to_gpg_key}")
+            on(master, "curl #{gpg_url} --output #{path_to_gpg_key}")
+            if location == 'pe_repo'
+              gpg_key_overwrite(host, 'pe_repo_env')
+            elsif location == 'pe_repo_env'
+              on master, puppet('agent -t'), :acceptable_exit_codes => [0,2]
             end
           end
         end
@@ -439,7 +471,6 @@ module Beaker
           # For some platforms (e.g, redhatfips), packaging_platfrom is set and should
           # be used as the primary source of truth for the platform string.
           platform = host['packaging_platform'] || host['platform']
-
           # We don't have a separate AIX 7.2 build, so it is
           # classified as 7.1 for pe_repo purposes
           if platform == "aix-7.2-power"
@@ -1997,6 +2028,8 @@ module Beaker
                  end
                end
              end
+
+             gpg_key_overwrite(master, 'pe_repo')
 
              step "Install agents" do
                block_on(agent_nodes, {:run_in_parallel => true}) do |host|
