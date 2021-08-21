@@ -2029,9 +2029,15 @@ module Beaker
                end
              end
 
-             if hosts.any? {|host| host['roles'].include?('pe_postgres')}
-               gpg_key_overwrite(pe_postgres, 'pe_repo')
-             end
+            # pe_postgres node needs new gpg key
+            if hosts.any? {|host| host['roles'].include?('pe_postgres')}
+              gpg_key_overwrite(pe_postgres, 'pe_repo')
+            end
+
+            # pe_repo needs updated with gpg key if sles/ubuntu/debian agent will be used
+            if hosts.any? {|host| host['platform'] =~ /(sles)|(ubuntu)|(debian)/}
+              gpg_key_overwrite(master, 'pe_repo')
+            end
 
              step "Install agents" do
                block_on(agent_nodes, {:run_in_parallel => true}) do |host|
