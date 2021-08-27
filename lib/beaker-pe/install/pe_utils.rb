@@ -10,7 +10,7 @@ module Beaker
   module DSL
     module InstallUtils
       #
-      # This module contains methods to help installing/upgrading PE builds - including Higgs installs
+      # This module contains methods to help installing/upgrading PE builds
       #
       # To mix this is into a class you need the following:
       # * a method *hosts* that yields any hosts implementing
@@ -157,7 +157,7 @@ module Beaker
           # PE 3.4 introduced the ability to pass in config options to the bash
           # script in the form of <section>:<key>=<value>
           frictionless_install_opts = []
-          if host.has_key?('frictionless_options') and !  version_is_less(pe_version, '3.4.0')
+          if host.has_key?('frictionless_options')
             # since we have options to pass in, we need to tell the bash script
             host['frictionless_options'].each do |section, settings|
               settings.each do |key, value|
@@ -169,7 +169,7 @@ module Beaker
           # PE 2018.1.0 introduced a pe_repo flag that will determine what happens during the frictionless install
           # Current support in beaker-pe is for:
           # --puppet-service-debug, when running puppet service enable, the debug flag is passed into puppt service
-          if (host[:puppet_service_debug_flag] == true and ! version_is_less(pe_version, '2018.1.0'))
+          if (host[:puppet_service_debug_flag] == true)
             frictionless_install_opts << '--puppet-service-debug'
           end
 
@@ -240,9 +240,7 @@ module Beaker
         # @api private
         def installer_cmd(host, opts)
           version = host['pe_ver'] || opts[:pe_ver]
-          # Frictionless install didn't exist pre-3.2.0, so in that case we fall
-          # through and do a regular install.
-          if host['roles'].include? 'frictionless' and ! version_is_less(version, '3.2.0')
+          if host['roles'].include? 'frictionless'
             frictionless_agent_installer_cmd(host, opts, version)
           elsif host['platform'] =~ /osx/
             version = host['pe_ver'] || opts[:pe_ver]
@@ -262,7 +260,7 @@ module Beaker
             # we can assume there will be a valid pe.conf in /etc that we can re-use.
             # We also expect that any custom_answers specified to beaker have been
             # added to the pe.conf in /etc.
-            if opts[:type] == :upgrade && use_meep?(host[:previous_pe_ver])
+            if opts[:type] == :upgrade
               "#{pe_cmd}"
             else
               "#{pe_cmd} #{host['pe_installer_conf_setting']}"
@@ -449,7 +447,7 @@ module Beaker
         def fetch_pe(hosts, opts)
           hosts.each do |host|
             # We install Puppet from the master for frictionless installs, so we don't need to *fetch* anything
-            next if host['roles'].include?('frictionless') && (! version_is_less(opts[:pe_ver] || host['pe_ver'], '3.2.0'))
+            next if host['roles'].include?('frictionless')
 
             if host['platform'] =~ /windows/
               fetch_pe_on_windows(host, opts)
@@ -598,7 +596,6 @@ module Beaker
         # @option opts [Boolean] :fetch_local_then_push_to_host determines whether
         #                 you use Beaker as the middleman for this (true), or curl the
         #                 file from the host (false; default behavior)
-        # @option opts [Boolean] :masterless Are we performing a masterless installation?
         #
         # @example
         #  do_install(hosts, {:type => :upgrade, :pe_dir => path, :pe_ver => version, :pe_ver_win =>  version_win})
@@ -662,13 +659,11 @@ module Beaker
         #
         # @api private
         def determine_install_type(hosts, opts)
-          # Do a generic install if this is masterless, not all the same PE version, an upgrade, or earlier than 2016.4
-          return :generic if opts[:masterless]
           return :generic if hosts.map {|host| host['pe_ver']}.uniq.length > 1
           return :generic if (opts[:type] == :upgrade) && (hosts.none? {|host| host['roles'].include?('pe_postgres')})
           return :generic if version_is_less(opts[:pe_ver] || hosts.first['pe_ver'], '2016.4')
           #PE-20610 Do a generic install for old versions on windows that needs msi install because of PE-18351
-          return :generic if hosts.any? {|host| host['platform'] =~ /windows/ && install_via_msi?(host)}
+          return :generic if hosts.any? {|host| host['platform'] =~ /windows/}
 
           mono_roles = ['master', 'database', 'dashboard']
           if has_all_roles?(hosts.first, mono_roles) && hosts.drop(1).all? {|host| host['roles'].include?('frictionless')}
@@ -852,25 +847,18 @@ module Beaker
         def generic_install hosts, opts = {}
           step "Installing PE on a generic set of hosts"
 
-          masterless = opts[:masterless]
           opts[:type] = opts[:type] || :install
-          unless masterless
-            pre30database = version_is_less(opts[:pe_ver] || database['pe_ver'], '3.0')
-            pre30master = version_is_less(opts[:pe_ver] || master['pe_ver'], '3.0')
-          end
 
           pe_versions = ( [] << opts['pe_ver'] << hosts.map{ |host| host['pe_ver'] } ).flatten.compact
-          agent_only_check_needed = version_is_less('3.99', max_version(pe_versions, '3.8'))
-          if agent_only_check_needed
-            hosts_agent_only, hosts_not_agent_only = create_agent_specified_arrays(hosts)
-          else
-            hosts_agent_only, hosts_not_agent_only = [], hosts.dup
-          end
 
           # On January 5th, 2017, the extended GPG key has expired. Rather then
           # every few months updating this gem to point to a new key for PE versions
           # less then PE 2016.4.0 we are going to just ignore the warning when installing
           ignore_gpg_key_warning_on_hosts(hosts, opts)
+
+          #hosts_agents_only are hosts that have only the role of agent
+          #hosts_not_agent_only are hosts that have agent and another role
+          hosts_agent_only, hosts_not_agent_only = create_agent_specified_arrays(hosts)
 
           # Set PE distribution for all the hosts, create working dir
           prepare_hosts(hosts_not_agent_only, opts)
@@ -878,14 +866,9 @@ module Beaker
           fetch_pe(hosts_not_agent_only, opts)
 
           install_hosts = hosts.dup
-          unless masterless
-            # If we're installing a database version less than 3.0, ignore the database host
-            install_hosts.delete(database) if pre30database and database != master and database != dashboard
-          end
 
           install_hosts.each do |host|
-
-            if agent_only_check_needed && hosts_agent_only.include?(host) || install_via_msi?(host)
+            if hosts_agent_only.include?(host)
               host['type'] = 'aio'
               install_params = {
                 :puppet_agent_version => get_puppet_agent_version(host, opts),
@@ -899,30 +882,20 @@ module Beaker
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = [0, 1]
               acceptable_exit_codes << 2 if opts[:type] == :upgrade
-              if masterless
-                configure_type_defaults_on(host)
-                on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
-              else
-                setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
-              end
+              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
             #Windows allows frictionless installs starting with PE Davis, if frictionless we need to skip this step
-            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')) || install_via_msi?(host))
+            elsif (host['platform'] =~ /windows/ && !(host['roles'].include?('frictionless')))
               opts = { :debug => host[:pe_debug] || opts[:pe_debug] }
               msi_path = "#{host['working_dir']}\\#{host['dist']}.msi"
               install_msi_on(host, msi_path, {}, opts)
 
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = 1
-              if masterless
-                configure_type_defaults_on(host)
-                on host, puppet_agent('-t'), :acceptable_exit_codes => acceptable_exit_codes
-              else
-                setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
-              end
+              setup_defaults_and_config_helper_on(host, master, acceptable_exit_codes)
             else
               # We only need answers if we're using the classic installer
               version = host['pe_ver'] || opts[:pe_ver]
-              if host['roles'].include?('frictionless') &&  (! version_is_less(version, '3.2.0'))
+              if host['roles'].include?('frictionless')
                 # If We're *not* running the classic installer, we want
                 # to make sure the master has packages for us.
                 if host['packaging_platform'] != master['packaging_platform'] # only need to do this if platform differs
@@ -947,57 +920,45 @@ module Beaker
               end
             end
             # On each agent, we ensure the certificate is signed
-            if !masterless
-              if [master, database, dashboard].include?(host) && use_meep?(host['pe_ver'])
-                # This step is not necessary for the core pe nodes when using meep
-              else
-                step "Sign certificate for #{host}" do
-                  sign_certificate_for(host)
-                end
+
+            if [master, database, dashboard].include?(host)
+              # This step is not necessary for the core pe nodes when using meep
+            else
+              step "Sign certificate for #{host}" do
+                sign_certificate_for(host)
               end
             end
+
             # then shut down the agent
             step "Shutting down agent for #{host}" do
               stop_agent_on(host)
             end
           end
 
-          unless masterless
-            # Wait for PuppetDB to be totally up and running (post 3.0 version of pe only)
-            sleep_until_puppetdb_started(database) unless pre30database
+          # Wait for PuppetDB to be totally up and running
+          sleep_until_puppetdb_started(database)
 
-            step "First puppet agent run" do
-              # Run the agent once to ensure everything is in the dashboard
-              install_hosts.each do |host|
-                on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
+          step "First puppet agent run" do
+            # Run the agent once to ensure everything is in the dashboard
+            install_hosts.each do |host|
+              on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
 
-                # Workaround for PE-1105 when deploying 3.0.0
-                # The installer did not respect our database host answers in 3.0.0,
-                # and would cause puppetdb to be bounced by the agent run. By sleeping
-                # again here, we ensure that if that bounce happens during an upgrade
-                # test we won't fail early in the install process.
-                if host == database && ! pre30database
-                  sleep_until_puppetdb_started(database)
-                  check_puppetdb_status_endpoint(database)
-                end
-                if host == dashboard
-                  check_console_status_endpoint(host)
-                end
-                #Workaround for windows frictionless install, see BKR-943 for the reason
-                if (host['platform'] =~ /windows/) and (host['roles'].include? 'frictionless')
-                  remove_client_datadir(host)
-                end
+              # Workaround for PE-1105 when deploying 3.0.0
+              # The installer did not respect our database host answers in 3.0.0,
+              # and would cause puppetdb to be bounced by the agent run. By sleeping
+              # again here, we ensure that if that bounce happens during an upgrade
+              # test we won't fail early in the install process.
+              if host == database
+                sleep_until_puppetdb_started(database)
+                check_puppetdb_status_endpoint(database)
               end
-            end
-
-            # only appropriate for pre-3.9 builds
-            if version_is_less(master[:pe_ver], '3.99')
-              if pre30master
-                task = 'nodegroup:add_all_nodes group=default'
-              else
-                task = 'defaultgroup:ensure_default_group'
+              if host == dashboard
+                check_console_status_endpoint(host)
               end
-              on dashboard, "/opt/puppet/bin/rake -sf /opt/puppet/share/puppet-dashboard/Rakefile #{task} RAILS_ENV=production"
+              #Workaround for windows frictionless install, see BKR-943 for the reason
+              if (host['platform'] =~ /windows/) and (host['roles'].include? 'frictionless')
+                remove_client_datadir(host)
+              end
             end
 
             if manage_puppet_service?(master[:pe_ver], options)
@@ -1012,7 +973,7 @@ module Beaker
                 # To work around PE-14318 if we just ran puppet agent on the
                 # database node we will need to wait until puppetdb is up and
                 # running before continuing
-                if host == database && ! pre30database
+                if host == database
                   sleep_until_puppetdb_started(database)
                   check_puppetdb_status_endpoint(database)
                 end
@@ -1052,22 +1013,18 @@ module Beaker
             elsif host['platform'] =~ /windows/
               version = host[:pe_ver] || local_options['pe_ver_win']
               is_config_32 = true == (host['ruby_arch'] == 'x86') || host['install_32'] || local_options['install_32']
-              should_install_64bit = !(version_is_less(version, '3.4')) && host.is_x86_64? && !is_config_32
+              should_install_64bit = host.is_x86_64? && !is_config_32
               #only install 64bit builds if
-              # - we are on pe version 3.4+
+
               # - we do not have install_32 set on host
               # - we do not have install_32 set globally
-              if !(version_is_less(version, '3.99'))
-                if should_install_64bit
-                  host['dist'] = "puppet-agent-#{version}-x64"
-                else
-                  host['dist'] = "puppet-agent-#{version}-x86"
-                end
-              elsif should_install_64bit
-                host['dist'] = "puppet-enterprise-#{version}-x64"
+
+              if should_install_64bit
+                host['dist'] = "puppet-agent-#{version}-x64"
               else
-                host['dist'] = "puppet-enterprise-#{version}"
+                host['dist'] = "puppet-agent-#{version}-x86"
               end
+
             end
             host['dist'] = "puppet-enterprise-#{version}-#{host['packaging_platform']}" if host['packaging_platform'] =~ /redhatfips/
             host['working_dir'] = host.tmpdir(Time.new.strftime("%Y-%m-%d_%H.%M.%S"))
@@ -1109,11 +1066,6 @@ module Beaker
           puppet_agent_version
         end
 
-        # True if version is greater than or equal to MEEP_CUTOVER_VERSION (2016.2.0)
-        def use_meep?(version)
-          !version_is_less(version, MEEP_CUTOVER_VERSION)
-        end
-
         # Tests if a feature flag has been set in the answers hash provided to beaker
         # options. Assumes a 'feature_flags' hash is present in the answers and looks for
         # +flag+ within it.
@@ -1125,18 +1077,6 @@ module Beaker
         #   answers hash at all
         def feature_flag?(flag, opts)
           Beaker::DSL::InstallUtils::FeatureFlags.new(opts).flag?(flag)
-        end
-
-        # @deprecated the !version_is_less(host['pe_ver'], '3.99') can be removed once we no longer support pre 2015.2.0 PE versions
-        # Check if windows host is able to frictionlessly install puppet
-        # @param [Beaker::Host] host that we are checking if it is possible to install frictionlessly to
-        # @return [Boolean] true if frictionless is supported and not affected by known bugs
-        def install_via_msi?(host)
-          #windows agents from 4.0 -> 2016.1.2 were only installable via the aio method
-          #powershell2 bug was fixed in PE 2016.4.3, and PE 2017.1.0, but not 2016.5.z.
-          (host['platform'] =~ /windows/ && (version_is_less(host['pe_ver'], '2016.4.0') && !version_is_less(host['pe_ver'], '3.99'))) ||
-            (host['platform'] =~ /windows-2008r2/ && (version_is_less(host['pe_ver'], '2016.4.3') && !version_is_less(host['pe_ver'], '3.99'))) ||
-            (host['platform'] =~ /windows-2008r2/ && (!version_is_less(host['pe_ver'], '2016.4.99') && version_is_less(host['pe_ver'], '2016.5.99') && !version_is_less(host['pe_ver'], '3.99')))
         end
 
         # Runs puppet on all nodes, unless they have the roles: master,database,console/dashboard
@@ -1218,15 +1158,9 @@ module Beaker
         # @param [Beaker::Host] host The host object to configure
         # @return [Beaker::Host] The same host object passed in
         def prepare_host_installer_options(host)
-          if use_meep?(host['pe_ver'])
             conf_file = "#{host['working_dir']}/pe.conf"
             host['pe_installer_conf_file'] = conf_file
             host['pe_installer_conf_setting'] = "-c #{conf_file}"
-          else
-            conf_file = "#{host['working_dir']}/answers"
-            host['pe_installer_conf_file'] = conf_file
-            host['pe_installer_conf_setting'] = "-a #{conf_file}"
-          end
           host
         end
 
@@ -1242,12 +1176,7 @@ module Beaker
         # @param [Hash] opts The Beaker options hash
         # @return [Hash] a dup of the opts hash with additional settings for BeakerAnswers
         def setup_beaker_answers_opts(host, opts)
-          beaker_answers_opts = use_meep?(host['pe_ver']) ?
-            { :format => :hiera } :
-            { :format => :bash }
-
-          beaker_answers_opts[:include_legacy_database_defaults] =
-            opts[:type] == :upgrade && !use_meep?(host['previous_pe_ver'])
+          beaker_answers_opts = { :format => :hiera }
 
           modified_opts = opts.merge(beaker_answers_opts)
 
@@ -1255,7 +1184,7 @@ module Beaker
           if !answers_hash.include?(:meep_schema_version)
             if feature_flag?(:meep_classification, opts)
               answers_hash[:meep_schema_version] = '2.0'
-            elsif use_meep?(host['pe_ver'])
+            else
               answers_hash[:meep_schema_version] = '1.0'
             end
           end
@@ -1388,9 +1317,6 @@ module Beaker
         end
 
         def check_puppetdb_status_endpoint(host)
-          if version_is_less(host['pe_ver'], '2016.1.0')
-            return true
-          end
           Timeout.timeout(60) do
             match = nil
             while not match
@@ -1414,8 +1340,6 @@ module Beaker
         #
         # @return nil
         def check_console_status_endpoint(host)
-          return true if version_is_less(host['pe_ver'], '2015.2.0')
-
           attempts_limit = options[:pe_console_status_attempts] || 9
           # Workaround for PE-14857. The classifier status service at the
           # default level is broken in 2016.1.1. Instead we need to query
@@ -1442,7 +1366,6 @@ module Beaker
         #
         # @param [Host, Array<Host>] install_hosts    One or more hosts to act upon
         # @!macro common_opts
-        # @option opts [Boolean] :masterless Are we performing a masterless installation?
         # @option opts [String] :puppet_agent_version  Version of puppet-agent to install. Required for PE agent
         #                                 only hosts on 4.0+
         # @option opts [String] :puppet_agent_sha The sha of puppet-agent to install, defaults to puppet_agent_version.
@@ -1466,14 +1389,8 @@ module Beaker
               #process the version files if necessary
               host['pe_dir'] ||= opts[:pe_dir]
               if host['platform'] =~ /windows/
-                # we don't need the pe_version if:
-                # * master pe_ver > 4.0
-                if not (!opts[:masterless] && master[:pe_ver] && !version_is_less(master[:pe_ver], '3.99'))
-                  host['pe_ver'] ||= Beaker::Options::PEVersionScraper.load_pe_version(host[:pe_dir] || opts[:pe_dir], opts[:pe_version_file_win])
-                else
                   # inherit the master's version
                   host['pe_ver'] ||= master[:pe_ver]
-                end
               else
                 host['pe_ver'] ||= Beaker::Options::PEVersionScraper.load_pe_version(host[:pe_dir] || opts[:pe_dir], opts[:pe_version_file])
               end
@@ -1502,17 +1419,12 @@ module Beaker
         #       for Unix like systems and puppet-enterprise-VERSION.msi for Windows systems.
         def upgrade_pe_on upgrade_hosts, opts, path=nil
           confine_block(:to, {}, upgrade_hosts) do
-            set_console_password = false
-            # if we are upgrading from something lower than 3.4 then we need to set the pe console password
-            if (dashboard[:pe_ver] ? version_is_less(dashboard[:pe_ver], "3.4.0") : true)
-              set_console_password = true
-            end
             # get new version information
             hosts.each do |host|
               prep_host_for_upgrade(host, opts, path)
             end
 
-            do_install(sorted_hosts, opts.merge({:type => :upgrade, :set_console_password => set_console_password}))
+            do_install(sorted_hosts, opts.merge({:type => :upgrade}))
             opts['upgrade'] = true
           end
         end
@@ -1541,124 +1453,10 @@ module Beaker
           end
         end
 
-        #Create the Higgs install command string based upon the host and options settings.  Installation command will be run as a
-        #background process.  The output of the command will be stored in the provided host['higgs_file'].
-        # @param [Host] host The host that Higgs is to be installed on
-        #                    The host object must have the 'working_dir', 'dist' and 'pe_installer' field set correctly.
-        # @api private
-        def higgs_installer_cmd host
-          higgs_answer = determine_higgs_answer(host['pe_ver'])
-          "cd #{host['working_dir']}/#{host['dist']} ; nohup ./#{host['pe_installer']} <<<#{higgs_answer} > #{host['higgs_file']} 2>&1 &"
-        end
-
-        # Determines the answer to supply to the command line installer in order to load up Higgs
-        # @return [String]
-        #  One of, 'Y', '1', '2'
-        #     'Y'
-        #       Pre-meep install of Higgs (Before PE 2016.2.0)
-        #     '1'
-        #       meep before PE 2018.1.3 (PE 2016.2.0 -> PE 2018.1.2)
-        #     '2'
-        #       Any meep PE 2018.1.3 or greater
-        def determine_higgs_answer(pe_ver)
-          if(use_meep?(pe_ver))
-            if(version_is_less(pe_ver, '2018.1.3'))
-              return '1'
-            elsif(version_is_less(pe_ver, '2019.0.2'))
-              return '2'
-            else
-              return '3'
-            end
-          else
-            return 'Y'
-          end
-        end
-
-        #Perform a Puppet Enterprise Higgs install up until web browser interaction is required, runs on linux hosts only.
-        # @param [Host] host The host to install higgs on
-        # @param  [Hash{Symbol=>Symbol, String}] opts The options
-        # @option opts [String] :pe_dir Default directory or URL to pull PE package from
-        #                  (Otherwise uses individual hosts pe_dir)
-        # @option opts [String] :pe_ver Default PE version to install
-        #                  (Otherwise uses individual hosts pe_ver)
-        # @option opts [Boolean] :fetch_local_then_push_to_host determines whether
-        #                 you use Beaker as the middleman for this (true), or curl the
-        #                 file from the host (false; default behavior)
-        # @raise [StandardError] When installation times out
-        #
-        # @example
-        #  do_higgs_install(master, {:pe_dir => path, :pe_ver => version})
-        #
-        # @api private
-        #
-        def do_higgs_install host, opts
-          use_all_tar = ENV['PE_USE_ALL_TAR'] == 'true'
-          platform = use_all_tar ? 'all' : host['platform']
-          version = host['pe_ver'] || opts[:pe_ver]
-          host['dist'] = "puppet-enterprise-#{version}-#{platform}"
-
-          use_all_tar = ENV['PE_USE_ALL_TAR'] == 'true'
-          host['pe_installer'] ||= 'puppet-enterprise-installer'
-          host['working_dir'] = host.tmpdir(Time.new.strftime("%Y-%m-%d_%H.%M.%S"))
-
-          fetch_pe([host], opts)
-
-          host['higgs_file'] = "higgs_#{File.basename(host['working_dir'])}.log"
-
-          prepare_host_installer_options(host)
-          on host, higgs_installer_cmd(host), opts
-
-          #wait for output to host['higgs_file']
-          #we're all done when we find this line in the PE installation log
-          if version_is_less(opts[:pe_ver] || host['pe_ver'], '2016.3')
-            higgs_re = /Please\s+go\s+to\s+https:\/\/.*\s+in\s+your\s+browser\s+to\s+continue\s+installation/m
-          else
-            higgs_re = /o\s+to\s+https:\/\/.*\s+in\s+your\s+browser\s+to\s+continue\s+installation/m
-          end
-          res = Result.new(host, 'tmp cmd')
-          tries = 10
-          attempts = 0
-          prev_sleep = 0
-          cur_sleep = 1
-          while (res.stdout !~ higgs_re) and (attempts < tries)
-            res = on host, "cd #{host['working_dir']}/#{host['dist']} && cat #{host['higgs_file']}", :accept_all_exit_codes => true
-            attempts += 1
-            sleep( cur_sleep )
-            prev_sleep = cur_sleep
-            cur_sleep = cur_sleep + prev_sleep
-          end
-
-          if attempts >= tries
-            raise "Failed to kick off PE (Higgs) web installation"
-          end
-        end
-
-        #Install Higgs up till the point where you need to continue installation in a web browser, defaults to execution
-        #on the master node.
-        #@param [Host] higgs_host The host to install Higgs on (supported on linux platform only)
-        # @example
-        #  install_higgs
-        #
-        # @note Either pe_ver and pe_dir should be set in the ENV or each host should have pe_ver and pe_dir set individually.
-        #       Install file names are assumed to be of the format puppet-enterprise-VERSION-PLATFORM.(tar)|(tar.gz).
-        #
-        def install_higgs( higgs_host = master )
-          #process the version files if necessary
-          master['pe_dir'] ||= options[:pe_dir]
-          master['pe_ver'] = master['pe_ver'] || options['pe_ver'] ||
-            Beaker::Options::PEVersionScraper.load_pe_version(master[:pe_dir] || options[:pe_dir], options[:pe_version_file])
-          if higgs_host['platform'] =~ /osx|windows/
-            raise "Attempting higgs installation on host #{higgs_host.name} with unsupported platform #{higgs_host['platform']}"
-          end
-          #send in the global options hash
-          do_higgs_install higgs_host, options
-        end
-
         #Installs PE with a PE managed external postgres
         def do_install_pe_with_pe_managed_external_postgres(hosts, opts)
           pe_infrastructure = select_hosts({:roles => ['master', 'dashboard', 'database', 'pe_postgres']}, hosts)
           non_infrastructure = hosts.reject{|host| pe_infrastructure.include? host}
-
           is_upgrade = (original_pe_ver(hosts[0]) != hosts[0][:pe_ver])
           step "Setup tmp installer directory and pe.conf" do
 
@@ -1976,7 +1774,7 @@ module Beaker
         end
 
         def setup_pe_conf(host, hosts, opts={})
-          if opts[:type] == :upgrade && use_meep?(host['previous_pe_ver'])
+          if opts[:type] == :upgrade
             # In this scenario, Beaker runs the installer such that we make
             # use of recovery code in the configure face of the installer.
             if host['roles'].include?('master')
