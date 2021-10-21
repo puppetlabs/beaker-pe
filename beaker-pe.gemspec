@@ -20,7 +20,7 @@ Gem::Specification.new do |s|
   # Testing dependencies
   s.add_development_dependency 'rspec', '~> 3.0'
   s.add_development_dependency 'rspec-its'
-  s.add_development_dependency 'fakefs', '~> 0.6', '< 0.14.0'
+  s.add_development_dependency 'fakefs', '~> 1.4', '< 1.5.0'
   s.add_development_dependency 'rake', '~> 12.3.3'
   s.add_development_dependency 'simplecov', '= 0.18.5'
   s.add_development_dependency 'pry', '~> 0.10'
