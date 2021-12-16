@@ -28,7 +28,7 @@ Gem::Specification.new do |s|
   # Documentation dependencies
   s.add_development_dependency 'yard'
   s.add_development_dependency 'markdown'
-  s.add_development_dependency 'activesupport', '~> 5.0'
+  s.add_development_dependency 'activesupport', '~> 7.0'
   s.add_development_dependency 'thin'
 
   # Run time dependencies
