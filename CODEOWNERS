@@ -1,5 +1,5 @@
 #This Repository is maintained by both the beaker, installer, and Night's Watch teams, depending on the location of the changes
-* @puppetlabs/beaker
+* @puppetlabs/dio
 /lib/beaker-pe/install @puppetlabs/installer-and-management
 /lib/beaker-pe/pe-client-tools @puppetlabs/night-s-watch
 /spec/beaker-pe/install @puppetlabs/installer-and-management
