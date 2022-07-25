@@ -272,7 +272,7 @@ describe ClassMixedWithDSLInstallUtils do
     it 'generates a PS1 frictionless install command for windows' do
       host['platform'] = 'windows-2012-64'
       protocol = ''
-      expecting = "powershell -c \"" +
+      expecting = "powershell -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -c \"" +
                   [
                     "cd /tmp",
                     "#{protocol}",
@@ -290,7 +290,7 @@ describe ClassMixedWithDSLInstallUtils do
       host['puppetpath'] = '/PuppetLabs/puppet/etc'
       host['use_puppet_ca_cert'] = true
       protocol = ''
-      expecting = "powershell -c \"" +
+      expecting = "powershell -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -c \"" +
       [
         "cd /tmp",
         "#{protocol}",
@@ -311,7 +311,7 @@ describe ClassMixedWithDSLInstallUtils do
     it 'generates a PS1 frictionless install command for windows with Tls12 protocol' do
       host['platform'] = 'windows-20012-64'
       protocol = '[System.Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12'
-      expecting = "powershell -c \"" +
+      expecting = "powershell -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -c \"" +
                   [
                     "cd /tmp",
                     "#{protocol}",
@@ -327,7 +327,7 @@ describe ClassMixedWithDSLInstallUtils do
     it 'generates a PS1 frictionless install command for windows-2008 without Tls12 protocol' do
       host['platform'] = 'windows-2008-64'
       protocol = ''
-      expecting = "powershell -c \"" +
+      expecting = "powershell -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -c \"" +
                   [
                     "cd /tmp",
                     "#{protocol}",
