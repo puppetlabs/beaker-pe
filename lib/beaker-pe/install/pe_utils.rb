@@ -209,7 +209,7 @@ module Beaker
               protocol_to_use = '[System.Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12'
             end
 
-            cmd = %Q{powershell -c "cd #{host['working_dir']};#{protocol_to_use};#{cert_validator};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{downloadhost}:8140/packages/current/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}"}
+            cmd = %Q{powershell -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -c "cd #{host['working_dir']};#{protocol_to_use};#{cert_validator};\\$webClient = New-Object System.Net.WebClient;\\$webClient.DownloadFile('https://#{downloadhost}:8140/packages/current/install.ps1', '#{host['working_dir']}/install.ps1');#{host['working_dir']}/install.ps1 -verbose #{frictionless_install_opts.join(' ')}"}
           else
             curl_opts = %w{-O}
             if version_is_less(pe_version, '2019.1.0') || require_tlsv1?(host)
