@@ -258,6 +258,9 @@ module Beaker
               pe_cmd += " -y"
             end
 
+            configure_flags = host['configure_flags'] || opts[:configure_flags]
+            pe_cmd += " -- #{configure_flags}" if configure_flags
+
             # If we are doing an upgrade from 2016.2.0,
             # we can assume there will be a valid pe.conf in /etc that we can re-use.
             # We also expect that any custom_answers specified to beaker have been
