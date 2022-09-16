@@ -2098,6 +2098,12 @@ EOM
               gpg_key_overwrite(master, 'pe_repo')
             end
 
+            # gnutls on our deb9 image is out of date and doesn't play nice with a primary
+            # running Java 17.
+            hosts.select { |host| host['platform'] =~ /debian-9/ }.each do |host|
+              on(host, 'apt-get update && apt-get install -y gnutls-bin')
+            end
+
              step "Install agents" do
                block_on(agent_nodes, {:run_in_parallel => true}) do |host|
                  install_ca_cert_on(host, opts)
