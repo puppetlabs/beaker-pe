@@ -723,8 +723,10 @@ module Beaker
             configure_puppet_agent_service(:ensure => 'stopped', :enabled => false)
           end
 
+          # waitforlock in case stopping the agent run after stopping the agent service
+          # takes a little longer than usual
           step "Run puppet to setup mcollective and pxp-agent" do
-            on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
+            on(master, puppet_agent('-t --waitforlock 1'), :acceptable_exit_codes => [0,2])
           end
 
           install_agents_only_on(agents, opts)
@@ -973,7 +975,9 @@ module Beaker
             step "First puppet agent run" do
               # Run the agent once to ensure everything is in the dashboard
               install_hosts.each do |host|
-                on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
+                # waitforlock in case stopping the agent run after stopping the agent service
+                # takes a little longer than usual
+                on host, puppet_agent('-t --waitforlock 1'), :acceptable_exit_codes => [0,2]
 
                 # Workaround for PE-1105 when deploying 3.0.0
                 # The installer did not respect our database host answers in 3.0.0,
@@ -1012,7 +1016,9 @@ module Beaker
               # Now that all hosts are in the dashbaord, run puppet one more
               # time to configure mcollective
               install_hosts.each do |host|
-                on host, puppet_agent('-t'), :acceptable_exit_codes => [0,2]
+                # waitforlock in case stopping the agent run after stopping the agent service
+                # takes a little longer than usual
+                on host, puppet_agent('-t --waitforlock 1'), :acceptable_exit_codes => [0,2]
                 # To work around PE-14318 if we just ran puppet agent on the
                 # database node we will need to wait until puppetdb is up and
                 # running before continuing
@@ -2114,8 +2120,10 @@ EOM
                stop_agent_on(agent_nodes, :run_in_parallel => true)
              end
 
+             # waitforlock in case stopping the agent run after stopping the agent service
+             # takes a little longer than usual
              step "Run puppet on all agent nodes" do
-               on agent_nodes, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
+               on agent_nodes, puppet_agent('-t --waitforlock 1'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
              end
 
              #Workaround for windows frictionless install, see BKR-943
