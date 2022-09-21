@@ -379,7 +379,7 @@ module Beaker
           filename = "#{host['dist']}"
           if local
             extension = File.exist?("#{path}/#{filename}.tar.gz") ? ".tar.gz" : ".tar"
-            if not File.exist?("#{path}/#{filename}#{extension}")
+            unless File.exist?("#{path}/#{filename}#{extension}")
               raise "attempting installation on #{host}, #{path}/#{filename}#{extension} does not exist"
             end
             scp_to host, "#{path}/#{filename}#{extension}", "#{host['working_dir']}/#{filename}#{extension}"
@@ -419,7 +419,7 @@ module Beaker
               }
               fetch_tarball_command = "cd #{host['working_dir']}; #{command_file_push}#{filename}#{extension}"
               retry_on(host, fetch_tarball_command, retry_requirements)
-              #on host, "cd #{host['working_dir']}; tar -xvf #{filename}#{extension}"
+              on host, "cd #{host['working_dir']}; tar -xvf #{filename}#{extension}"
 
               gpg_key_overwrite(host, 'tarball')
             end
