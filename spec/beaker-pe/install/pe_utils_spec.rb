@@ -1969,6 +1969,7 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:generate_installer_conf_file_for)
       allow(subject).to receive(:deploy_frictionless_to_master)
       allow(subject).to receive(:install_agents_only_on)
+      allow(subject).to receive(:waitforlock_flag).and_return('')
 
       allow(subject).to receive(:installer_cmd).with(monolithic, anything()).and_return("install master")
       allow(subject).to receive(:installer_cmd).with(el_agent, anything()).and_return("install el agent")
