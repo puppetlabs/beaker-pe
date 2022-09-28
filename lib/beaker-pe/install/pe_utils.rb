@@ -144,8 +144,17 @@ module Beaker
         end
 
         #Return '--waitforlock 1' if the agent is >= 6.16 which was used in 2019.8.0.
-        def waitforlock_flag
-          version_is_less(master['pe_ver'], '2019.8.0') ? '' : '--waitforlock 1'
+        #In the test running with legacy agents, the pe_ver value on that host
+        #corresponds to the PE version the old agent comes from. Also, puppet_agent_version
+        #is present on these host objects.
+        def waitforlock_flag(host)
+          agent_version = host['puppet_agent_version']
+          pe_ver = host['pe_ver']
+          if (agent_version && version_is_less(agent_version, '6.16.0')) || version_is_less(host['pe_ver'], '2019.8.0')
+            ''
+          else
+            '--waitforlock 1'
+          end
         end
 
         # Generate the command line string needed to from a frictionless puppet-agent
@@ -731,7 +740,7 @@ module Beaker
           # waitforlock in case stopping the agent run after stopping the agent service
           # takes a little longer than usual
           step "Run puppet to setup mcollective and pxp-agent" do
-            on(master, puppet_agent("-t #{waitforlock_flag}"), :acceptable_exit_codes => [0,2])
+            on(master, puppet_agent("-t #{waitforlock_flag(master)}"), :acceptable_exit_codes => [0,2])
           end
 
           install_agents_only_on(agents, opts)
@@ -982,7 +991,7 @@ module Beaker
               install_hosts.each do |host|
                 # waitforlock in case stopping the agent run after stopping the agent service
                 # takes a little longer than usual
-                on host, puppet_agent("-t #{waitforlock_flag}"), :acceptable_exit_codes => [0,2]
+                on host, puppet_agent("-t #{waitforlock_flag(host)}"), :acceptable_exit_codes => [0,2]
 
                 # Workaround for PE-1105 when deploying 3.0.0
                 # The installer did not respect our database host answers in 3.0.0,
@@ -1023,7 +1032,7 @@ module Beaker
               install_hosts.each do |host|
                 # waitforlock in case stopping the agent run after stopping the agent service
                 # takes a little longer than usual
-                on host, puppet_agent("-t #{waitforlock_flag}"), :acceptable_exit_codes => [0,2]
+                on host, puppet_agent("-t #{waitforlock_flag(host)}"), :acceptable_exit_codes => [0,2]
                 # To work around PE-14318 if we just ran puppet agent on the
                 # database node we will need to wait until puppetdb is up and
                 # running before continuing
@@ -2128,7 +2137,9 @@ EOM
              # waitforlock in case stopping the agent run after stopping the agent service
              # takes a little longer than usual
              step "Run puppet on all agent nodes" do
-               on agent_nodes, puppet_agent("-t #{waitforlock_flag}"), :acceptable_exit_codes => [0,2], :run_in_parallel => true
+               block_on(agent_nodes, {:run_in_parallel => true}) do |host|
+                 on host, puppet_agent("-t #{waitforlock_flag(host)}"), :acceptable_exit_codes => [0,2]
+               end
              end
 
              #Workaround for windows frictionless install, see BKR-943

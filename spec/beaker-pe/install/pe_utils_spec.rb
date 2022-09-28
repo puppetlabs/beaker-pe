@@ -2026,7 +2026,7 @@ describe ClassMixedWithDSLInstallUtils do
 
     it 'installs agent on agent hosts' do
       agents = [agent, agent]
-      expect(subject).to receive(:block_on).with(agents, :run_in_parallel => true)
+      expect(subject).to receive(:block_on).with(agents, :run_in_parallel => true).twice
       subject.install_agents_only_on(agents, opts)
     end
 
@@ -2034,13 +2034,6 @@ describe ClassMixedWithDSLInstallUtils do
       agents = [agent, agent]
       expect(subject).to receive(:sign_certificate_for).with(agents)
       expect(subject).to receive(:stop_agent_on).with(agents, :run_in_parallel => true)
-      subject.install_agents_only_on(agents, opts)
-    end
-
-    it 'runs puppet on agent hosts' do
-      agents = [agent, agent]
-      expect(subject).to receive(:on).with(agents, proc {
-        |cmd| cmd.command == "puppet agent"}, hash_including(:run_in_parallel => true)).once
       subject.install_agents_only_on(agents, opts)
     end
   end
