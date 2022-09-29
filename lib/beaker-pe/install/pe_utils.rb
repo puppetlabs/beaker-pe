@@ -823,6 +823,8 @@ module Beaker
               # The next two lines clear the rest of the internal puppet lan
               on host, "iptables -A OUTPUT -p tcp -d 10.16.0.0/16 -j ACCEPT"
               on host, "iptables -A OUTPUT -p tcp -d 10.32.0.0/16 -j ACCEPT"
+              # And for GCP scratchpad hosts
+              on host, "iptables -A OUTPUT -p tcp -d 10.253.0.0/16 -j ACCEPT"
               # This allows udp on a port bundler requires
               on host, 'iptables -A OUTPUT -p udp -m udp --dport 53 -j ACCEPT'
               # Next two lines allow host to access itself via localhost or 127.0.0.1
