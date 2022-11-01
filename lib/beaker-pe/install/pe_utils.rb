@@ -1396,10 +1396,10 @@ gKDWHrO8Dw9TdSmq6hN35N6MgSGtBxBHEa2HPQfRdbzP82Z+
 EOM
           hosts.each do |host|
             if host.platform=~ /solaris-11(\.2)?-(i386|sparc)/
-              create_remote_file(host, "DigiCertTrustedRootG4.crt.pem", digicert)
-              on(host, 'chmod a+r /root/DigiCertTrustedRootG4.crt.pem')
-              on(host, 'cp -p /root/DigiCertTrustedRootG4.crt.pem /etc/certs/CA/')
-              on(host, 'rm /root/DigiCertTrustedRootG4.crt.pem')
+              create_remote_file(host, "DigiCert_Trusted_Root_G4.pem", digicert)
+              on(host, 'chmod a+r /root/DigiCert_Trusted_Root_G4.pem')
+              on(host, 'cp -p /root/DigiCert_Trusted_Root_G4.pem /etc/certs/CA/')
+              on(host, 'rm /root/DigiCert_Trusted_Root_G4.pem')
               on(host, '/usr/sbin/svcadm restart /system/ca-certificates')
               timeout = 60
               counter = 0
