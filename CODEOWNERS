@@ -1,5 +1,2 @@
-#This Repository is maintained by both the release engineering, and installer teams, depending on the location of the changes
-*  @puppetlabs/release-engineering
-/lib/beaker-pe/install @puppetlabs/installer-and-management
-/lib/beaker-pe/pe-client-tools @puppetlabs/installer-and-management
-/spec/beaker-pe/install @puppetlabs/installer-and-management
+#This Repository is maintained by the release engineering, skeletor, and nimbus teams
+*  @puppetlabs/release-engineering @puppetlabs/skeletor @puppetlabs/nimbus
