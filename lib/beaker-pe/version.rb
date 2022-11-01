@@ -3,7 +3,7 @@ module Beaker
     module PE
 
       module Version
-        STRING = '2.11.23'
+        STRING = '2.11.24'
       end
 
     end
