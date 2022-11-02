@@ -1063,13 +1063,14 @@ describe ClassMixedWithDSLInstallUtils do
   describe 'fetch_pe' do
 
     it 'can push a local PE .tar.gz to a host and unpack it' do
-      allow( File ).to receive( :directory? ).and_return( true ) #is local
-      allow( File ).to receive( :exists? ).and_return( true ) #is a .tar.gz
+      allow( File ).to receive( :directory? ).and_return( true )
+      allow( File ).to receive( :exists? ).and_return( true )
+      allow( File ).to receive( :exist? ).and_return( true )
       unixhost['pe_dir'] = '/local/file/path'
       allow( subject ).to receive( :scp_to ).and_return( true )
 
       path = unixhost['pe_dir']
-      filename = "#{ unixhost['dist'] }"
+      filename = unixhost['dist']
       extension = '.tar.gz'
       expect( subject ).to receive( :scp_to ).with( unixhost, "#{ path }/#{ filename }#{ extension }", "#{ unixhost['working_dir'] }/#{ filename }#{ extension }" ).once
       expect( subject ).to receive( :on ).with( unixhost, /gunzip/ ).once
@@ -1079,61 +1080,69 @@ describe ClassMixedWithDSLInstallUtils do
 
     it 'can download a PE .tar from a URL to a host and unpack it' do
       allow( File ).to receive( :directory? ).and_return( false ) #is not local
-      allow( subject ).to receive( :link_exists? ) do |arg|
-        if arg =~ /.tar.gz/ #there is no .tar.gz link, only a .tar
-          false
-        else
-          true
-        end
-      end
-      allow( subject ).to receive( :on ).and_return( true )
+      allow( subject ).to receive( :link_exists? ) { |arg| arg !~ /.tar.gz/ }
+      zero_exit_code_mock = Object.new
+      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
+      allow( subject ).to receive( :on ).and_return( zero_exit_code_mock )
 
+      unixhost['pe_dir'] = '/local/file/path'
       path = unixhost['pe_dir']
-      filename = "#{ unixhost['dist'] }"
+      filename = unixhost['dist']
       extension = '.tar'
-      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; curl -L #{ path }/#{ filename }#{ extension } | tar -xvf -" ).once
+      expect( subject )
+        .to receive( :on )
+              .with( unixhost, "cd #{ unixhost['working_dir'] }; curl --fail --location --output #{ filename }#{ extension } #{ path }/#{ filename }#{ extension }", anything ).once
       subject.fetch_pe( [unixhost], {} )
     end
 
     it 'can download a PE .tar from a URL to #fetch_and_push_pe' do
-      allow( File ).to receive( :directory? ).and_return( false ) #is not local
-      allow( subject ).to receive( :link_exists? ) do |arg|
-        if arg =~ /.tar.gz/ #there is no .tar.gz link, only a .tar
-          false
-        else
-          true
-        end
-      end
-      allow( subject ).to receive( :on ).and_return( true )
+      allow( File ).to receive( :directory? ).and_return( false )
+      allow( subject ).to receive( :link_exists? ) { |arg| arg !~ /.tar.gz/ }
 
-      filename = "#{ unixhost['dist'] }"
+      zero_exit_code_mock = Object.new
+      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
+      allow( subject ).to receive( :on ).and_return( zero_exit_code_mock )
+
+      filename = unixhost['dist']
       extension = '.tar'
-      expect( subject ).to receive( :fetch_and_push_pe ).with( unixhost, anything, filename, extension ).once
-      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; cat #{ filename }#{ extension } | tar -xvf -" ).once
+      expect( subject )
+        .to receive( :fetch_and_push_pe )
+              .with( unixhost, anything, filename, extension ).once
+      expect( subject )
+        .to receive( :on )
+              .with( unixhost, "cd #{ unixhost['working_dir'] }; cat #{ filename }#{ extension }", anything )
+              .once
       subject.fetch_pe( [unixhost], {:fetch_local_then_push_to_host => true} )
     end
 
     it 'can download a PE .tar.gz from a URL to a host and unpack it' do
       allow( File ).to receive( :directory? ).and_return( false ) #is not local
       allow( subject ).to receive( :link_exists? ).and_return( true ) #is a tar.gz
-      allow( subject ).to receive( :on ).and_return( true )
+
+      zero_exit_code_mock = Object.new
+      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
+      allow( subject ).to receive( :on ).and_return( zero_exit_code_mock )
 
       path = unixhost['pe_dir']
-      filename = "#{ unixhost['dist'] }"
+      filename = unixhost['dist']
       extension = '.tar.gz'
-      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; curl -L #{ path }/#{ filename }#{ extension } | gunzip | tar -xvf -" ).once
+      expect( subject )
+        .to receive( :on )
+              .with( unixhost, "cd #{ unixhost['working_dir'] }; curl --fail --location --output #{ filename }#{ extension } #{ path }/#{ filename }#{ extension }", anything ).once
       subject.fetch_pe( [unixhost], {} )
     end
 
     it 'can download a PE .tar.gz from a URL to #fetch_and_push_pe' do
-      allow( File ).to receive( :directory? ).and_return( false ) #is not local
-      allow( subject ).to receive( :link_exists? ).and_return( true ) #is a tar.gz
-      allow( subject ).to receive( :on ).and_return( true )
+      allow( File ).to receive( :directory? ).and_return( false )
+      allow( subject ).to receive( :link_exists? ).and_return( true )
+      zero_exit_code_mock = Object.new
+      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
+      allow( subject ).to receive( :on ).and_return( zero_exit_code_mock )
 
-      filename = "#{ unixhost['dist'] }"
+      filename = unixhost['dist']
       extension = '.tar.gz'
       expect( subject ).to receive( :fetch_and_push_pe ).with( unixhost, anything, filename, extension ).once
-      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; cat #{ filename }#{ extension } | gunzip | tar -xvf -" ).once
+      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; cat #{ filename }#{ extension }", anything ).once
       subject.fetch_pe( [unixhost], {:fetch_local_then_push_to_host => true} )
     end
 
@@ -1367,7 +1376,7 @@ describe ClassMixedWithDSLInstallUtils do
 
       allow(subject).to receive(:stop_agent_on).and_return(true)
       expect(subject).to receive(:stop_agent_on).with([mono_master, pe_postgres], :run_in_parallel => true).once
-      
+
       allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2]).exactly(3).times
       allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2]).once
 
