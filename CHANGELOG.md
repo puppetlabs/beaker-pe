@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.12.0](https://github.com/puppetlabs/beaker-pe/tree/2.12.0) (2023-05-12)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.11.24...2.12.0)
+
+**Implemented enhancements:**
+
+- \(RE-15478\) Update actions and release workflow [\#217](https://github.com/puppetlabs/beaker-pe/pull/217) ([yachub](https://github.com/yachub))
+- \(RE-15111\) Add Mend Scanning [\#211](https://github.com/puppetlabs/beaker-pe/pull/211) ([yachub](https://github.com/yachub))
+- \(RE-14819\) Retry failed curls before trying to gunzip them [\#203](https://github.com/puppetlabs/beaker-pe/pull/203) ([e-gris](https://github.com/e-gris))
+
+**Merged pull requests:**
+
+- Update beaker-puppet requirement from ~\> 1.0 to \>= 1, \< 3 [\#218](https://github.com/puppetlabs/beaker-pe/pull/218) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Allow beaker 5 [\#215](https://github.com/puppetlabs/beaker-pe/pull/215) ([bastelfreak](https://github.com/bastelfreak))
+- Update fakefs requirement from ~\> 0.6, \< 0.14.0 to ~\> 2.4, \< 2.5.0 [\#214](https://github.com/puppetlabs/beaker-pe/pull/214) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update simplecov requirement from = 0.18.5 to = 0.22.0 [\#209](https://github.com/puppetlabs/beaker-pe/pull/209) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update activesupport requirement from ~\> 5.0 to ~\> 7.0 [\#192](https://github.com/puppetlabs/beaker-pe/pull/192) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update rake requirement from ~\> 12.3.3 to ~\> 13.0.6 [\#185](https://github.com/puppetlabs/beaker-pe/pull/185) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [2.11.24](https://github.com/puppetlabs/beaker-pe/tree/2.11.24) (2022-11-01)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.11.23...2.11.24)
