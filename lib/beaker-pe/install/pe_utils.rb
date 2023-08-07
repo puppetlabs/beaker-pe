@@ -424,9 +424,9 @@ module Beaker
           # be used as the primary source of truth for the platform string.
           platform = host['packaging_platform'] || host['platform']
 
-          # We don't have a separate AIX 7.2 build, so it is
+          # We don't have a separate AIX 7.2 build prior to 2023, so it is
           # classified as 7.1 for pe_repo purposes
-          if platform == "aix-7.2-power"
+          if platform == "aix-7.2-power" && version_is_less(master[:pe_ver], '2023.0.0')
             platform = "aix-7.1-power"
           end
           klass = platform.gsub(/-/, '_').gsub(/\./,'')
