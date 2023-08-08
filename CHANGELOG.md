@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.13.0](https://github.com/puppetlabs/beaker-pe/tree/2.13.0) (2023-08-08)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.12.0...2.13.0)
+
+**Implemented enhancements:**
+
+- \(PE-36506\) Use AIX 7.2 packages for 2023 STS stream [\#226](https://github.com/puppetlabs/beaker-pe/pull/226) ([donoghuc](https://github.com/donoghuc))
+
+**Fixed bugs:**
+
+- \(RE-15688\) Add working nodeset for beaker-rspec tests [\#227](https://github.com/puppetlabs/beaker-pe/pull/227) ([yachub](https://github.com/yachub))
+
 ## [2.12.0](https://github.com/puppetlabs/beaker-pe/tree/2.12.0) (2023-05-12)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.11.24...2.12.0)
