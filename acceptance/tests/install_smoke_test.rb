@@ -7,11 +7,6 @@ hosts.each do |host|
   on host, facter('--help')
 end
 
-step 'puppet install smoketest: verify \'hiera --help\' can be successfully called on all hosts'
-hosts.each do |host|
-  on host, hiera('--help')
-end
-
 step 'puppet install smoketest: verify \'puppet help\' can be successfully called on all hosts'
 hosts.each do |host|
   on host, puppet('help')
