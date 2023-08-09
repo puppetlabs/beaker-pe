@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.14.0](https://github.com/puppetlabs/beaker-pe/tree/2.14.0) (2023-08-09)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.13.0...2.14.0)
+
+**Merged pull requests:**
+
+- Bump beaker from 4.40.1 to 4.40.2 [\#224](https://github.com/puppetlabs/beaker-pe/pull/224) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.0.4.3 to 7.0.6 [\#223](https://github.com/puppetlabs/beaker-pe/pull/223) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update fakefs requirement from ~\> 2.4, \< 2.5.0 to ~\> 2.4, \< 2.6.0 [\#222](https://github.com/puppetlabs/beaker-pe/pull/222) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [2.13.0](https://github.com/puppetlabs/beaker-pe/tree/2.13.0) (2023-08-08)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.12.0...2.13.0)
