@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.14.1](https://github.com/puppetlabs/beaker-pe/tree/2.14.1) (2023-08-24)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.14.0...2.14.1)
+
+**Merged pull requests:**
+
+- Bump activesupport from 7.0.7 to 7.0.7.2 [\#231](https://github.com/puppetlabs/beaker-pe/pull/231) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.0.6 to 7.0.7 [\#230](https://github.com/puppetlabs/beaker-pe/pull/230) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [2.14.0](https://github.com/puppetlabs/beaker-pe/tree/2.14.0) (2023-08-09)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.13.0...2.14.0)
