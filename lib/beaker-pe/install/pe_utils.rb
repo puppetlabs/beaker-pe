@@ -507,6 +507,8 @@ module Beaker
             else
               klass = "pe_repo::platform::windows_x86_64"
             end
+          elsif platform =~ /aix-.*-power/ && !version_is_less(master[:pe_ver], '2022.99.99')
+            klass = "pe_repo::platform::aix_power"
           else
             klass = "pe_repo::platform::#{klass}"
           end
