@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.15.0](https://github.com/puppetlabs/beaker-pe/tree/2.15.0) (2023-08-29)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.14.1...2.15.0)
+
+**Implemented enhancements:**
+
+- \(PE-36725\) Update Aix's pe\_repo class name [\#233](https://github.com/puppetlabs/beaker-pe/pull/233) ([cthorn42](https://github.com/cthorn42))
+
 ## [2.14.1](https://github.com/puppetlabs/beaker-pe/tree/2.14.1) (2023-08-24)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.14.0...2.14.1)
