@@ -495,11 +495,6 @@ module Beaker
           # For some platforms (e.g, redhatfips), packaging_platfrom is set and should
           # be used as the primary source of truth for the platform string.
           platform = host['packaging_platform'] || host['platform']
-          # We don't have a separate AIX 7.2 build prior to 2023, so it is
-          # classified as 7.1 for pe_repo purposes
-          if platform == "aix-7.2-power" && version_is_less(master[:pe_ver], '2023.0.0')
-            platform = "aix-7.1-power"
-          end
           klass = platform.gsub(/-/, '_').gsub(/\./,'')
           if host['platform'] =~ /windows/
             if host['template'] =~ /i386/
@@ -507,7 +502,7 @@ module Beaker
             else
               klass = "pe_repo::platform::windows_x86_64"
             end
-          elsif platform =~ /aix-.*-power/ && !version_is_less(master[:pe_ver], '2022.99.99')
+          elsif platform =~ /aix-.*-power/ && !version_is_less(master[:pe_ver], '2019.0.3')
             klass = "pe_repo::platform::aix_power"
           else
             klass = "pe_repo::platform::#{klass}"
