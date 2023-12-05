@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.16.0](https://github.com/puppetlabs/beaker-pe/tree/2.16.0) (2023-12-05)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.15.0...2.16.0)
+
+**Merged pull requests:**
+
+- \(maint\) Use unversioned AIX pe\_repo class [\#244](https://github.com/puppetlabs/beaker-pe/pull/244) ([nmburgan](https://github.com/nmburgan))
+- Update rake requirement from ~\> 13.0.6 to ~\> 13.1.0 [\#239](https://github.com/puppetlabs/beaker-pe/pull/239) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.1.0 to 7.1.1 [\#238](https://github.com/puppetlabs/beaker-pe/pull/238) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.0.8 to 7.1.0 [\#237](https://github.com/puppetlabs/beaker-pe/pull/237) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump actions/checkout from 3 to 4 [\#236](https://github.com/puppetlabs/beaker-pe/pull/236) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.0.7.2 to 7.0.8 [\#235](https://github.com/puppetlabs/beaker-pe/pull/235) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [2.15.0](https://github.com/puppetlabs/beaker-pe/tree/2.15.0) (2023-08-29)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.14.1...2.15.0)
