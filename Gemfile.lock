@@ -26,7 +26,7 @@ GEM
     ast (2.4.2)
     base64 (0.2.0)
     bcrypt_pbkdf (1.1.0)
-    beaker (4.40.2)
+    beaker (4.41.1)
       beaker-hostgenerator
       ed25519 (~> 1.0)
       hocon (~> 1.0)
