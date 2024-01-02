@@ -26,7 +26,7 @@ GEM
     ast (2.4.2)
     base64 (0.2.0)
     bcrypt_pbkdf (1.1.0)
-    beaker (4.41.1)
+    beaker (4.41.2)
       beaker-hostgenerator
       ed25519 (~> 1.0)
       hocon (~> 1.0)
@@ -125,7 +125,7 @@ GEM
     net-ldap (0.18.0)
     net-scp (4.0.0)
       net-ssh (>= 2.6.5, < 8.0.0)
-    net-ssh (7.2.0)
+    net-ssh (7.2.1)
     oga (3.4)
       ast
       ruby-ll (~> 2.1)
