@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    beaker-pe (2.16.0)
+    beaker-pe (3.0.0)
       beaker (>= 4.0, < 6)
       beaker-abs
       beaker-answers (~> 1.0)
