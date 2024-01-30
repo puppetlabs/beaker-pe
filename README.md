@@ -66,7 +66,7 @@ with spec testing by running the `test:spec:coverage` rake task.
 
 Acceptance tests live in the `acceptance/tests` folder.  These are Beaker tests,
 & are dependent on having Beaker installed. Note that this will happen with a
-`bundle install` execution, but can be avoided if you're not looking to run 
+`bundle install` execution, but can be avoided if you're not looking to run
 acceptance tests by ignoring the `acceptance_testing` gem group.
 
 You can run the acceptance testing suite by invoking the `test:acceptance` rake
@@ -76,6 +76,11 @@ provided hosts file for acceptance under the `acceptance/config` directory. If
 you'd like to provide your own hosts file, set the `CONFIG` environment variable.
 
 ## Releasing
+
+Prerequisites (without these steps you will almost certainly hit API rate limits):
+
+1. Generate [an API token](https://github.com/settings/tokens) with repository permissions and authorize the Puppet organization after generating.
+2. Export that token as `CHANGELOG_GITHUB_TOKEN`
 
 Open a release prep PR and run the release action:
 
