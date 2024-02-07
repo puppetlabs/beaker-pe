@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.0.0](https://github.com/puppetlabs/beaker-pe/tree/3.0.0) (2024-01-29)
+## [3.0.0](https://github.com/puppetlabs/beaker-pe/tree/3.0.0) (2024-02-07)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.16.0...3.0.0)
 
@@ -16,6 +16,7 @@
 
 **Merged pull requests:**
 
+- Bump rspec from 3.12.0 to 3.13.0 [\#253](https://github.com/puppetlabs/beaker-pe/pull/253) ([dependabot[bot]](https://github.com/apps/dependabot))
 - Bump activesupport from 7.1.2 to 7.1.3 [\#251](https://github.com/puppetlabs/beaker-pe/pull/251) ([dependabot[bot]](https://github.com/apps/dependabot))
 - Bump actions/setup-java from 3 to 4 [\#245](https://github.com/puppetlabs/beaker-pe/pull/245) ([dependabot[bot]](https://github.com/apps/dependabot))
 - Bump actions/github-script from 6 to 7 [\#241](https://github.com/puppetlabs/beaker-pe/pull/241) ([dependabot[bot]](https://github.com/apps/dependabot))
