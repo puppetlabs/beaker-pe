@@ -193,7 +193,7 @@ GEM
     vmfloaty (1.8.1)
       commander (>= 4.4.3, < 4.7.0)
       faraday (~> 1.5, >= 1.5.1)
-    yard (0.9.35)
+    yard (0.9.36)
 
 PLATFORMS
   aarch64-linux
