@@ -325,6 +325,24 @@ module Beaker
           end
         end
 
+        # Determine the build package to download on a sles-11 (Intel) host, install that package onto the host.
+        # Assumed file name format: puppet-agent-7.29.1.26.gf344eeefa-1.sles11.x86_64.rpm.
+        # This method should be called after puppet is installed on the master since it relies on the master
+        # telling it the puppet agent version to form the download URL.
+        # @param [Host] host The sles-11 host to download and install the package on.
+        # @param  [Hash{Symbol=>Symbol, String}] opts The options
+        # @api private
+        def install_rpm_on_sles11_host(host, puppet_agent_ver, opts)
+          # Since sles11 builds are not available in PE, download from agent-downloads.
+          agent_downloads_url = "http://agent-downloads.delivery.puppetlabs.net/puppet-agent"
+          master_aio_version = puppet_fact(master, 'aio_agent_build')
+          stream = opts[:puppet_collection] || "puppet#{puppet_agent_ver[0]}"
+          path = "#{agent_downloads_url}/#{puppet_agent_ver}/repos/sles/11/#{stream}/x86_64"
+          filename = "puppet-agent-#{master_aio_version}-1.sles11.x86_64"
+          extension = ".rpm"
+          host.install_package_with_rpm("#{path}/#{filename}#{extension}")
+        end
+ 
         #Determine the PE package to download/upload on a windows host, download/upload that package onto the host.
         #Assumed file name format: puppet-enterprise-3.3.0-rc1-559-g97f0833.msi
         # @param [Host] host The windows host to download/upload and unpack PE onto
@@ -920,8 +938,12 @@ module Beaker
                 :puppet_collection => host[:puppet_collection] || opts[:puppet_collection],
                 :pe_promoted_builds_url => host[:pe_promoted_builds_url] || opts[:pe_promoted_builds_url]
               }
-              install_params.delete(:pe_promoted_builds_url) if install_params[:pe_promoted_builds_url].nil?
-              install_puppet_agent_pe_promoted_repo_on(host, install_params)
+              if host['platform'] =~ /sles-11/
+                install_rpm_on_sles11_host(host, install_params[:puppet_agent_version], opts)
+              else
+                install_params.delete(:pe_promoted_builds_url) if install_params[:pe_promoted_builds_url].nil?
+                install_puppet_agent_pe_promoted_repo_on(host, install_params)
+              end
               # 1 since no certificate found and waitforcert disabled
               acceptable_exit_codes = [0, 1]
               acceptable_exit_codes << 2 if opts[:type] == :upgrade

@@ -30,13 +30,14 @@ describe ClassMixedWithDSLInstallUtils do
   let(:basic_hosts)   { make_hosts( { :pe_ver => '3.0',
                                       :platform => 'linux',
                                       :roles => [ 'agent' ],
-                                      :type => 'pe'}, 4 ) }
+                                      :type => 'pe'}, 5 ) }
   let(:hosts)         { basic_hosts[0][:roles] = ['master', 'database', 'dashboard']
                         basic_hosts[1][:platform] = 'windows'
                         basic_hosts[2][:platform] = 'osx-10.9-x86_64'
                         basic_hosts[3][:platform] = 'eos'
+                        basic_hosts[4][:platform] = 'sles'
                         basic_hosts  }
-  let(:hosts_sorted)  { [ hosts[1], hosts[0], hosts[2], hosts[3] ] }
+  let(:hosts_sorted)  { [ hosts[1], hosts[0], hosts[2], hosts[3], hosts[4] ] }
   let(:winhost)       { make_host( 'winhost', { :platform => 'windows',
                                                 :pe_ver => '3.0',
                                                 :type => 'pe',
@@ -55,7 +56,10 @@ describe ClassMixedWithDSLInstallUtils do
                                                 :type => 'pe',
                                                 :working_dir => '/tmp',
                                                 :dist => 'puppet-enterprise-3.7.1-rc0-78-gffc958f-eos-4-i386' } ) }
-
+  let(:sles11host)    { make_host( 'sles11', { :platform => 'sles',
+                                               :pe_ver => '3.0',
+                                               :type => 'pe',
+                                               :working_dir => '/tmp'} ) }
   let(:lei_hosts)     { make_hosts( { :pe_ver => '3.0',
                                       :platform => 'linux',
                                       :roles => [ 'agent' ],
@@ -1637,8 +1641,30 @@ describe ClassMixedWithDSLInstallUtils do
       subject.do_install([])
     end
 
+    context "install rpm file in sles host" do
+      let(:opts) {
+        { :puppet_collection => 'puppet7' }
+      }
+      let(:stream) { opts[:puppet_collection] }
+      let(:puppet_agent_ver) { '7.29.1.26' }
+      let(:agent_downloads_url) { "http://agent-downloads.delivery.puppetlabs.net/puppet-agent" }
+      let(:master_version) { '7.29.1.26.gf344eeefa' }
+      let(:path) { "#{agent_downloads_url}/#{puppet_agent_ver}/repos/sles/11/#{stream}/x86_64" }
+      let(:filename) { "puppet-agent-#{master_version}-1.sles11.x86_64" }
+      let(:extension) { '.rpm' }
+      let(:url) { "#{path}/#{filename}#{extension}" }
+  
+      it "generates the correct url to download the package" do
+        allow( subject ).to receive( :puppet_fact ).and_return( master_version )
+        allow( subject ).to receive( :master ).and_return( {} )
+  
+        expect( hosts[4] ).to receive( :install_package_with_rpm ).with( url ).once
+        subject.install_rpm_on_sles11_host(hosts[4], puppet_agent_ver, opts)
+      end
+    end
+
     it 'can perform a simple installation' do
-      expect(subject).to receive(:get_mco_setting).and_return({})
+      expect(subject).to receive(:get_mco_setting).and_return({}).twice
       allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
       allow( subject ).to receive( :fetch_pe ).and_return( true )
