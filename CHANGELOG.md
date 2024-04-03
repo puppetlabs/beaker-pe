@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.16.1](https://github.com/puppetlabs/beaker-pe/tree/2.16.1) (2024-04-03)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.16.0...2.16.1)
+
+**Implemented enhancements:**
+
+- \(PE-37704\) Allow for SLES-11 \(Intel\) builds to be installed in PE 2021.7.x for testing [\#259](https://github.com/puppetlabs/beaker-pe/pull/259) ([shubhamshinde360](https://github.com/shubhamshinde360))
+
 ## [2.16.0](https://github.com/puppetlabs/beaker-pe/tree/2.16.0) (2023-12-05)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.15.0...2.16.0)
