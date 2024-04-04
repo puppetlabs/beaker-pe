@@ -1,12 +1,41 @@
 # Changelog
 
-## [2.16.1](https://github.com/puppetlabs/beaker-pe/tree/2.16.1) (2024-04-03)
+## [2.16.1](https://github.com/puppetlabs/beaker-pe/tree/2.16.1) (2024-04-04)
 
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.16.0...2.16.1)
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.0...2.16.1)
 
 **Implemented enhancements:**
 
 - \(PE-37704\) Allow for SLES-11 \(Intel\) builds to be installed in PE 2021.7.x for testing [\#259](https://github.com/puppetlabs/beaker-pe/pull/259) ([shubhamshinde360](https://github.com/shubhamshinde360))
+
+**Merged pull requests:**
+
+- Bump yard from 0.9.35 to 0.9.36 [\#258](https://github.com/puppetlabs/beaker-pe/pull/258) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rack from 2.2.8 to 2.2.8.1 [\#257](https://github.com/puppetlabs/beaker-pe/pull/257) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump yard from 0.9.34 to 0.9.35 [\#256](https://github.com/puppetlabs/beaker-pe/pull/256) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.1.3 to 7.1.3.2 [\#255](https://github.com/puppetlabs/beaker-pe/pull/255) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump scooter from 4.5.0 to 4.5.4 [\#254](https://github.com/puppetlabs/beaker-pe/pull/254) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [3.0.0](https://github.com/puppetlabs/beaker-pe/tree/3.0.0) (2024-02-07)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.16.0...3.0.0)
+
+**Implemented enhancements:**
+
+- Bump beaker from 4.40.2 to 4.41.1 [\#248](https://github.com/puppetlabs/beaker-pe/pull/248) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump scooter from 4.4.0 to 4.5.0 [\#242](https://github.com/puppetlabs/beaker-pe/pull/242) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+**Fixed bugs:**
+
+- Bump beaker from 4.41.1 to 4.41.2 [\#249](https://github.com/puppetlabs/beaker-pe/pull/249) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.1.1 to 7.1.2 [\#240](https://github.com/puppetlabs/beaker-pe/pull/240) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+**Merged pull requests:**
+
+- Bump rspec from 3.12.0 to 3.13.0 [\#253](https://github.com/puppetlabs/beaker-pe/pull/253) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.1.2 to 7.1.3 [\#251](https://github.com/puppetlabs/beaker-pe/pull/251) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump actions/setup-java from 3 to 4 [\#245](https://github.com/puppetlabs/beaker-pe/pull/245) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump actions/github-script from 6 to 7 [\#241](https://github.com/puppetlabs/beaker-pe/pull/241) ([dependabot[bot]](https://github.com/apps/dependabot))
 
 ## [2.16.0](https://github.com/puppetlabs/beaker-pe/tree/2.16.0) (2023-12-05)
 
