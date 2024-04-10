@@ -36,27 +36,6 @@ jobs:
           return response.tag_name
         result-encoding: string
 
-    - name: Generate Changelog
-      uses: docker://githubchangeloggenerator/github-changelog-generator:1.16.2
-      with:
-        args: >-
-          --future-release ${{ steps.nv.outputs.version }}
-      env:
-        CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Validate Changelog
-      run : |
-        set -e
-        if output=$(git status --porcelain) && [ ! -z "$output" ]; then
-          echo "Here is the current git status:"
-          git status
-          echo
-          echo "The following changes were detected:"
-          git --no-pager diff
-          echo "Uncommitted PRs found in the changelog. Please submit a release prep PR of changes after running './release-prep'"
-          exit 1
-        fi
-
     - name: Generate Release Notes
       uses: docker://githubchangeloggenerator/github-changelog-generator:1.16.2
       with:
