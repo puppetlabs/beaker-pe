@@ -1,8 +1,8 @@
 # Changelog
 
-## [3.0.1](https://github.com/puppetlabs/beaker-pe/tree/3.0.1) (2024-04-08)
+## [2.16.1](https://github.com/puppetlabs/beaker-pe/tree/2.16.1) (2024-03-19)
 
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.0...3.0.1)
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.0...2.16.1)
 
 **Implemented enhancements:**
 
