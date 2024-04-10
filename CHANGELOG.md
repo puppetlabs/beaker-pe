@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.0.1](https://github.com/puppetlabs/beaker-pe/tree/3.0.1) (2024-04-08)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.0...3.0.1)
+
+**Implemented enhancements:**
+
+- \(PE-37704\) Allow for SLES-11 \(Intel\) builds to be installed in PE 2021.7.x for testing [\#259](https://github.com/puppetlabs/beaker-pe/pull/259) ([shubhamshinde360](https://github.com/shubhamshinde360))
+
+**Merged pull requests:**
+
+- Bump yard from 0.9.35 to 0.9.36 [\#258](https://github.com/puppetlabs/beaker-pe/pull/258) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rack from 2.2.8 to 2.2.8.1 [\#257](https://github.com/puppetlabs/beaker-pe/pull/257) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump yard from 0.9.34 to 0.9.35 [\#256](https://github.com/puppetlabs/beaker-pe/pull/256) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump activesupport from 7.1.3 to 7.1.3.2 [\#255](https://github.com/puppetlabs/beaker-pe/pull/255) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump scooter from 4.5.0 to 4.5.4 [\#254](https://github.com/puppetlabs/beaker-pe/pull/254) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [3.0.0](https://github.com/puppetlabs/beaker-pe/tree/3.0.0) (2024-02-07)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.16.0...3.0.0)
