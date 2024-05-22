@@ -5,7 +5,7 @@ PATH
       beaker (>= 4.0, < 6)
       beaker-abs
       beaker-answers (~> 1.0)
-      beaker-puppet (>= 1, < 3)
+      beaker-puppet (>= 1)
       beaker-vmpooler (~> 1.0)
       stringify-hash (~> 0.0.0)
 
@@ -219,4 +219,4 @@ DEPENDENCIES
   yard
 
 BUNDLED WITH
-   2.3.23
+   2.4.22
