@@ -33,7 +33,7 @@ Gem::Specification.new do |s|
 
   # Run time dependencies
   s.add_runtime_dependency 'beaker', '>= 4.0', '< 6'
-  s.add_runtime_dependency 'beaker-puppet', '>=1', '<3'
+  s.add_runtime_dependency 'beaker-puppet', '>=1'
   s.add_runtime_dependency 'stringify-hash', '~> 0.0.0'
   s.add_runtime_dependency 'beaker-answers', '~> 0.0'
   s.add_runtime_dependency 'beaker-abs'
