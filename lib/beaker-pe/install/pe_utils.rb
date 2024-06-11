@@ -891,6 +891,231 @@ module Beaker
           end
         end
 
+        # Gets host-specific information for PE promoted puppet-agent packages (Mac version)
+        #
+        # @param [Host] host
+        # @param [String] puppet_collection Name of the puppet collection to use
+        # @param [Hash{Symbol=>String}] opts Options hash to provide extra values
+        #
+        # @return [String, String, String] Host-specific information for packages
+        #   1. release_path_end Suffix for the release_path. Used on Windows. Check
+        #   {Windows::Pkg#pe_puppet_agent_promoted_package_info} to see usage.
+        #   2. release_file Path to the file on release build servers
+        #   3. download_file Filename for the package itself
+        def pe_puppet_agent_promoted_package_info_mac(host, puppet_collection = nil, opts = {} )
+          error_message = "Must provide %s argument to get puppet agent dev package information"
+          raise ArgumentError, error_message % "puppet_collection" unless puppet_collection
+
+          variant, version, arch, _codename = host['platform'].to_array
+          release_file = "/repos/apple/#{version}/#{puppet_collection}/#{arch}/puppet-agent-*"
+
+          # macOS puppet-agent tarballs haven't always included arch
+          agent_version = opts[:puppet_agent_version]
+          agent_version_f = agent_version&.to_f
+
+          download_file = if agent_version_f.nil? || (agent_version_f < 6.28 || (agent_version_f >= 7.0 && agent_version_f < 7.18))
+                            "puppet-agent-#{variant}-#{version}.tar.gz"
+                          else
+                            "puppet-agent-#{variant}-#{version}-#{arch}.tar.gz"
+                          end
+
+          return '', release_file, download_file
+        end
+
+        # Gets host-specific information for PE promoted puppet-agent packages (Windows version)
+        #
+        # @param [Host] host
+        # @param [String] puppet_collection Name of the puppet collection to use
+        # @param [Hash{Symbol=>String}] opts Options hash to provide extra values
+        #
+        # @return [String, String, String] Host-specific information for packages
+        #   1. release_path_end Suffix for the release_path
+        #   2. release_file Path to the file on release build servers
+        #   3. download_file Filename for the package itself
+        def pe_puppet_agent_promoted_package_info_windows(host, _puppet_collection = nil, _opts = {} )
+          is_config_32 = host['ruby_arch'] == 'x86' || host['install_32'] || host['install_32']
+          should_install_64bit = host.is_x86_64? && !is_config_32
+          # only install 64bit builds if
+          # - we do not have install_32 set on host
+          # - we do not have install_32 set globally
+          arch_suffix = should_install_64bit ? '64' : '86'
+          release_path_end = "/windows"
+          release_file = "/puppet-agent-x#{arch_suffix}.msi"
+          download_file = "puppet-agent-x#{arch_suffix}.msi"
+          return release_path_end, release_file, download_file
+        end
+
+        # Gets host-specific information for PE promoted puppet-agent packages (Unix version)
+        #
+        # @param [Host] host
+        # @param [String] puppet_collection Name of the puppet collection to use
+        # @param [Hash{Symbol=>String}] opts Options hash to provide extra values
+        #
+        # @return [String, String, String] Host-specific information for packages
+        #   1. release_path_end Suffix for the release_path. Used on Windows. Check
+        #   {Windows::Pkg#pe_puppet_agent_promoted_package_info} to see usage.
+        #   2. release_file Path to the file on release build servers
+        #   3. download_file Filename for the package itself
+        def pe_puppet_agent_promoted_package_info_unix(host, puppet_collection = nil, _opts = {} )
+          error_message = "Must provide %s argument to get puppet agent dev package information"
+          raise ArgumentError, error_message % "puppet_collection" unless puppet_collection
+
+          variant, version, arch, codename = host['platform'].to_array
+          case variant
+          when /^(fedora|el|centos|redhat|opensuse|sles)$/
+            variant = ((['centos', 'redhat'].include?(variant)) ? 'el' : variant)
+            release_file = "/repos/#{variant}/#{version}/#{puppet_collection}/#{arch}/puppet-agent-*.rpm"
+            download_file = "puppet-agent-#{variant}-#{version}-#{arch}.tar.gz"
+          when /^(debian|ubuntu|cumulus)$/
+            if arch == 'x86_64'
+              arch = 'amd64'
+            end
+            version = version[0,2] + '.' + version[2,2] if (variant.include?('ubuntu') && !version.include?("."))
+            release_file = "/repos/apt/#{codename}/pool/#{puppet_collection}/p/puppet-agent/puppet-agent*#{arch}.deb"
+            download_file = "puppet-agent-#{variant}-#{version}-#{arch}.tar.gz"
+          when /^solaris$/
+            if arch == 'x86_64'
+              arch = 'i386'
+            end
+            release_file = "/repos/solaris/#{version}/#{puppet_collection}/"
+            download_file = "puppet-agent-#{variant}-#{version}-#{arch}.tar.gz"
+          else
+            raise "No pe-promoted installation step for #{variant} yet..."
+          end
+          return '', release_file, download_file
+        end
+
+        def pe_puppet_agent_promoted_package_install_dispatch(host, onhost_copy_base, onhost_copied_download, onhost_copied_file, download_file, _opts)
+          case host
+          when Mac::Host
+            return pe_puppet_agent_promoted_package_install_mac(host, onhost_copy_base, onhost_copied_download, onhost_copied_file, download_file, _opts)
+          when Unix::Host
+            return pe_puppet_agent_promoted_package_install_unix(host, onhost_copy_base, onhost_copied_download, onhost_copied_file, download_file, _opts)
+          end
+          raise RuntimeError("#{host.class} not one of Beaker::(Mac|Unix)::Host")
+        end
+
+        # Installs a given PE promoted package on a Mac host
+        #
+        # @param [Host] host Host to install package on
+        # @param [String] onhost_copy_base Base copy directory on the host
+        # @param [String] onhost_copied_download Downloaded file path on the host
+        # @param [String] onhost_copied_file Copied file path once un-compressed
+        # @param [String] download_file File name of the downloaded file
+        # @param [Hash{Symbol=>String}] opts additional options
+        #
+        # @return nil
+        def pe_puppet_agent_promoted_package_install_mac(
+              host, onhost_copy_base, onhost_copied_download, onhost_copied_file, _download_file, _opts
+            )
+          host.execute("tar -zxvf #{onhost_copied_download} -C #{onhost_copy_base}")
+          # move to better location
+          host.execute("mv #{onhost_copied_file}.dmg .")
+          host.install_package("puppet-agent-*")
+        end
+
+
+        # Installs a given PE promoted package on a Unix host
+        #
+        # @param [Host] host Host to install package on
+        # @param [String] onhost_copy_base Base copy directory on the host
+        # @param [String] onhost_copied_download Downloaded file path on the host
+        # @param [String] onhost_copied_file Copied file path once un-compressed
+        # @param [String] download_file File name of the downloaded file
+        # @param [Hash{Symbol=>String}] opts additional options
+        #
+        # @return nil
+        def pe_puppet_agent_promoted_package_install_unix(
+              host, onhost_copy_base, onhost_copied_download, onhost_copied_file, download_file, _opts
+            )
+          host.uncompress_local_tarball(onhost_copied_download, onhost_copy_base, download_file )
+          if /^solaris/.match?(host['platform'])
+            # above uncompresses the install from .tar.gz -> .p5p into the
+            # onhost_copied_file directory w/a weird name. We have to read that file
+            # name from the filesystem, so that we can provide it to install_local...
+            pkg_filename = host.execute( "ls #{onhost_copied_file}" )
+            onhost_copied_file = "#{onhost_copied_file}#{pkg_filename}"
+          end
+
+          host.install_local_package(onhost_copied_file, onhost_copy_base )
+          nil
+        end
+
+        def pe_puppet_agent_promoted_package_info_dispatch(host, puppet_collection = nil, opts = {})
+          case host
+          when Windows::Host
+            return pe_puppet_agent_promoted_package_info_windows(host, puppet_collection, opts)
+          when Mac::Host
+            return pe_puppet_agent_promoted_package_info_mac(host, puppet_collection, opts)
+          when Unix::Host
+            return pe_puppet_agent_promoted_package_info_unix(host, puppet_collection, opts)
+          end
+          raise RuntimeError("#{host.class} not one of Beaker::(Windows|Mac|Unix)::Host")
+        end
+
+        # Install shared repo of the puppet-agent on the given host(s).  Downloaded from
+        # location of the form PE_PROMOTED_BUILDS_URL/PE_VER/puppet-agent/AGENT_VERSION/repo
+        #
+        # @param [Host, Array<Host>, String, Symbol] hosts    One or more hosts to act upon,
+        #                            or a role (String or Symbol) that identifies one or more hosts.
+        # @param [Hash{Symbol=>String}] opts An options hash
+        # @option opts [String] :puppet_agent_version The version of puppet-agent to install, defaults to 'latest'
+        # @option opts [String] :pe_ver The version of PE (will also use host['pe_ver']), defaults to '4.0'
+        # @option opts [String] :copy_base_local Directory where puppet-agent artifact
+        #                       will be stored locally
+        #                       (default: 'tmp/repo_configs')
+        # @option opts [String] :copy_dir_external Directory where puppet-agent
+        #                       artifact will be pushed to on the external machine
+        #                       (default: '/root')
+        # @option opts [String] :puppet_collection Defaults to 'PC1'
+        # @option opts [String] :pe_promoted_builds_url Base URL to pull artifacts from
+        def install_puppet_agent_pe_promoted_repo_on(hosts, opts)
+          opts[:puppet_agent_version] ||= 'latest'
+
+          block_on hosts do |host|
+            pe_ver = host[:pe_ver] || opts[:pe_ver] || '4.0.0-rc1'
+            opts = sanitize_opts(opts)
+            opts[:download_url] =
+              "#{opts[:pe_promoted_builds_url]}/puppet-agent/#{pe_ver}/#{opts[:puppet_agent_version]}/repos"
+            opts[:copy_base_local]    ||= File.join('tmp', 'repo_configs')
+            opts[:copy_dir_external]  ||= host.external_copy_base
+            opts[:puppet_collection] ||= puppet_collection_for(:puppet_agent, opts[:puppet_agent_version])
+            add_role(host, 'aio') # we are installing agent, so we want aio role
+            release_path = opts[:download_url]
+            variant, version, arch, codename = host['platform'].to_array
+            copy_dir_local = File.join(opts[:copy_base_local], variant)
+            onhost_copy_base = opts[:copy_dir_external]
+
+            release_path_end, release_file, download_file =
+            pe_puppet_agent_promoted_package_info_dispatch(
+              host,
+              opts[:puppet_collection], opts
+            )
+            release_path << release_path_end
+
+            onhost_copied_download = File.join(onhost_copy_base, download_file)
+            onhost_copied_file = File.join(onhost_copy_base, release_file)
+            fetch_http_file(release_path, download_file, copy_dir_local)
+            scp_to host, File.join(copy_dir_local, download_file), onhost_copy_base
+
+            if variant == 'windows'
+              result = on host, "echo #{onhost_copied_file}"
+              onhost_copied_file = result.raw_output.chomp
+              opts = { debug: host[:pe_debug] || opts[:pe_debug] }
+              # couldn't pull this out, because it's relying on
+              # {Beaker::DSL::InstallUtils::WindowsUtils} methods,
+              # which I didn't want to attack right now. TODO
+              install_msi_on(host, onhost_copied_file, {}, opts)
+            else
+              pe_puppet_agent_promoted_package_install_dispatch(
+                host,
+                onhost_copy_base, onhost_copied_download,
+                onhost_copied_file, download_file, opts
+              )
+            end
+            configure_type_defaults_on(host)
+          end
+        end
 
         def generic_install hosts, opts = {}
           step "Installing PE on a generic set of hosts"
