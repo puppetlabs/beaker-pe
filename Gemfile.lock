@@ -136,7 +136,7 @@ GEM
       coderay (~> 1.1)
       method_source (~> 1.0)
     rack (2.2.8.1)
-    rake (13.1.0)
+    rake (13.2.1)
     require_all (3.0.0)
     rexml (3.2.6)
     rspec (3.13.0)
@@ -210,7 +210,7 @@ DEPENDENCIES
   fakefs (~> 2.4, < 2.6.0)
   markdown
   pry (~> 0.10)
-  rake (~> 13.1.0)
+  rake (~> 13.2.1)
   rspec (~> 3.0)
   rspec-its
   scooter (~> 4.3)
