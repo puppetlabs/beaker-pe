@@ -342,7 +342,7 @@ module Beaker
           extension = ".rpm"
           host.install_package_with_rpm("#{path}/#{filename}#{extension}")
         end
- 
+
         #Determine the PE package to download/upload on a windows host, download/upload that package onto the host.
         #Assumed file name format: puppet-enterprise-3.3.0-rc1-559-g97f0833.msi
         # @param [Host] host The windows host to download/upload and unpack PE onto
@@ -1076,7 +1076,11 @@ module Beaker
             pe_ver = host[:pe_ver] || opts[:pe_ver] || '4.0.0-rc1'
             opts = sanitize_opts(opts)
             opts[:download_url] =
-              "#{opts[:pe_promoted_builds_url]}/puppet-agent/#{pe_ver}/#{opts[:puppet_agent_version]}/repos"
+              if Gem::Version.new(pe_ver) > Gem::Version.new('2023.7.0')
+                "#{opts[:pe_promoted_builds_url]}/v2/agent/#{pe_ver}/#{opts[:puppet_agent_version]}/repos"
+              else
+                "#{opts[:pe_promoted_builds_url]}/puppet-agent/#{pe_ver}/#{opts[:puppet_agent_version]}/repos"
+              end
             opts[:copy_base_local]    ||= File.join('tmp', 'repo_configs')
             opts[:copy_dir_external]  ||= host.external_copy_base
             opts[:puppet_collection] ||= puppet_collection_for(:puppet_agent, opts[:puppet_agent_version])
