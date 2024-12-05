@@ -1,8 +1,56 @@
 # Changelog
 
-## [3.0.1](https://github.com/puppetlabs/beaker-pe/tree/3.0.1) (2024-04-08)
+## [3.3.1](https://github.com/puppetlabs/beaker-pe/tree/3.3.1) (2024-12-05)
 
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.0...3.0.1)
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.3.0...3.3.1)
+
+**Implemented enhancements:**
+
+- \(maint\): Added support for v2 agent download url [\#283](https://github.com/puppetlabs/beaker-pe/pull/283) ([span786](https://github.com/span786))
+
+## [3.3.0](https://github.com/puppetlabs/beaker-pe/tree/3.3.0) (2024-06-21)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.19.0...3.3.0)
+
+## [2.19.0](https://github.com/puppetlabs/beaker-pe/tree/2.19.0) (2024-06-21)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.2.0...2.19.0)
+
+**Implemented enhancements:**
+
+- \(PE-38685\) Beaker 6 upgrade [\#281](https://github.com/puppetlabs/beaker-pe/pull/281) ([tlehman](https://github.com/tlehman))
+
+## [3.2.0](https://github.com/puppetlabs/beaker-pe/tree/3.2.0) (2024-06-11)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.18.0...3.2.0)
+
+## [2.18.0](https://github.com/puppetlabs/beaker-pe/tree/2.18.0) (2024-06-11)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.1.0...2.18.0)
+
+**Implemented enhancements:**
+
+- \(PE-38522\) Add install\_puppet\_agent\_pe\_promoted\_repo\_on [\#277](https://github.com/puppetlabs/beaker-pe/pull/277) ([tlehman](https://github.com/tlehman))
+
+## [3.1.0](https://github.com/puppetlabs/beaker-pe/tree/3.1.0) (2024-05-22)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.17.0...3.1.0)
+
+**Merged pull requests:**
+
+- \(PE-37784\) Remove upper bound for beaker-puppet [\#273](https://github.com/puppetlabs/beaker-pe/pull/273) ([nmburgan](https://github.com/nmburgan))
+
+## [2.17.0](https://github.com/puppetlabs/beaker-pe/tree/2.17.0) (2024-04-10)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.1...2.17.0)
+
+## [3.0.1](https://github.com/puppetlabs/beaker-pe/tree/3.0.1) (2024-04-10)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.16.1...3.0.1)
+
+## [2.16.1](https://github.com/puppetlabs/beaker-pe/tree/2.16.1) (2024-03-19)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.0...2.16.1)
 
 **Implemented enhancements:**
 
