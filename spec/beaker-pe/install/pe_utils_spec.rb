@@ -2061,7 +2061,7 @@ describe ClassMixedWithDSLInstallUtils do
 
     it 'installs agent on agent hosts' do
       agents = [agent, agent]
-      expect(subject).to receive(:block_on).with(agents, :run_in_parallel => true).twice
+      expect(subject).to receive(:block_on).with(agents, { run_in_parallel: true }).twice
       subject.install_agents_only_on(agents, opts)
     end
 

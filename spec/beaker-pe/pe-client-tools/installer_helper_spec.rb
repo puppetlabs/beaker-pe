@@ -36,7 +36,7 @@ describe ClassPEClientToolsMixedWithPatterns do
             'pe-client-tools',
             opts[:pe_client_tools_sha],
             '/tmp/repo_configs',
-            dev_builds_url: 'http://builds.delivery.puppetlabs.net'
+            { dev_builds_url: 'http://builds.delivery.puppetlabs.net' }
           )
           expect(host).to receive(:install_package).with("pe-client-tools")
 
@@ -51,7 +51,7 @@ describe ClassPEClientToolsMixedWithPatterns do
             'pe-client-tools',
             tag_opts[:pe_client_tools_version],
             '/tmp/repo_configs',
-            dev_builds_url: 'http://builds.delivery.puppetlabs.net'
+            { dev_builds_url: 'http://builds.delivery.puppetlabs.net' }
           )
           expect(host).to receive(:install_package).with("pe-client-tools")
 
@@ -69,7 +69,7 @@ describe ClassPEClientToolsMixedWithPatterns do
             'pe-client-tools',
             opts[:pe_client_tools_sha],
             '/tmp/repo_configs',
-            dev_builds_url: 'http://builds.delivery.puppetlabs.net'
+            { dev_builds_url: 'http://builds.delivery.puppetlabs.net' }
           )
           expect(host).to receive(:install_package).with('pe-client-tools')
 
@@ -84,7 +84,7 @@ describe ClassPEClientToolsMixedWithPatterns do
             'pe-client-tools',
             tag_opts[:pe_client_tools_version],
             '/tmp/repo_configs',
-            dev_builds_url: 'http://builds.delivery.puppetlabs.net'
+            { dev_builds_url: 'http://builds.delivery.puppetlabs.net' }
           )
           expect(host).to receive(:install_package).with('pe-client-tools')
 
