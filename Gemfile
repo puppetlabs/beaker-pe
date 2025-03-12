@@ -22,6 +22,6 @@ gem "scooter", *location_for(ENV['SCOOTER_VERSION'] || '~> 4.3')
 
 gem 'deep_merge'
 
-if File.exists? "#{__FILE__}.local"
+if File.exist? "#{__FILE__}.local"
   eval(File.read("#{__FILE__}.local"), binding)
 end
