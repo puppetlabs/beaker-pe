@@ -82,6 +82,25 @@ describe ClassMixedWithDSLInstallUtils do
     subject.logger = logger
   end
 
+  context '#install_puppet_agent_pe_promoted_repo_on' do
+
+    it 'will read a redirect if necessary' do
+      # Only test the function under test attempts to read the redirect; skip
+      # the rest of function by bailing early after that attempt has been verified
+      # by raising this special exception
+      class SpecialRedirectTestException < StandardError
+      end
+      opts[:pe_promoted_builds_url] = 'https://mycooltesturl.com'
+      allow(Net::HTTP).to receive(:start).with('mycooltesturl.com').and_return('http://mycooltesturlredirect.com/puppet-agent-el-9-x86_64.tar.gz')
+      allow(subject).to receive(:fetch_http_file).with('http://mycooltesturlredirect.com', 'puppet-agent-el-9-x86_64.tar.gz', 'tmp/repo_configs/el').and_raise(SpecialRedirectTestException)
+      allow(subject).to receive(:sanitize_opts).and_return(opts)
+
+      test_host = Beaker::Host.create("test", {platform: 'el-9-x86_64'}, opts)
+      test_host['platform'] = Beaker::Platform.new(test_host['platform'])
+      expect{subject.install_puppet_agent_pe_promoted_repo_on([test_host], opts)}.to raise_error(SpecialRedirectTestException)
+    end
+  end
+
   context '#prep_host_for_upgrade' do
 
     it 'sets per host options before global options' do

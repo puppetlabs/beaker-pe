@@ -1099,7 +1099,12 @@ module Beaker
 
             onhost_copied_download = File.join(onhost_copy_base, download_file)
             onhost_copied_file = File.join(onhost_copy_base, release_file)
-            fetch_http_file(release_path, download_file, copy_dir_local)
+            download_uri = URI.parse("#{release_path}/#{download_file}")
+            if (redirect = Net::HTTP.start(download_uri.host) { |http| http.head(download_uri.path).response['location'] })
+              fetch_http_file(redirect.chomp("/#{download_file}"), download_file, copy_dir_local)
+            else
+              fetch_http_file(release_path, download_file, copy_dir_local)
+            end
             scp_to host, File.join(copy_dir_local, download_file), onhost_copy_base
 
             if variant == 'windows'
