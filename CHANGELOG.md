@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.5.0](https://github.com/puppetlabs/beaker-pe/tree/3.5.0) (2025-04-15)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.4.0...3.5.0)
+
+**Implemented enhancements:**
+
+- \(PE-40793\) Follow https->>http redirects [\#287](https://github.com/puppetlabs/beaker-pe/pull/287) ([tvpartytonight](https://github.com/tvpartytonight))
+
 ## [3.4.0](https://github.com/puppetlabs/beaker-pe/tree/3.4.0) (2025-03-12)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.3.1...3.4.0)
