@@ -30,14 +30,15 @@ describe ClassMixedWithDSLInstallUtils do
   let(:basic_hosts)   { make_hosts( { :pe_ver => '3.0',
                                       :platform => 'linux',
                                       :roles => [ 'agent' ],
-                                      :type => 'pe'}, 5 ) }
+                                      :type => 'pe'}, 6 ) }
   let(:hosts)         { basic_hosts[0][:roles] = ['master', 'database', 'dashboard']
                         basic_hosts[1][:platform] = 'windows'
                         basic_hosts[2][:platform] = 'osx-10.9-x86_64'
                         basic_hosts[3][:platform] = 'eos'
                         basic_hosts[4][:platform] = 'sles'
+                        basic_hosts[5][:platform] = 'solaris'
                         basic_hosts  }
-  let(:hosts_sorted)  { [ hosts[1], hosts[0], hosts[2], hosts[3], hosts[4] ] }
+  let(:hosts_sorted)  { [ hosts[1], hosts[0], hosts[2], hosts[3], hosts[4], hosts[5] ] }
   let(:winhost)       { make_host( 'winhost', { :platform => 'windows',
                                                 :pe_ver => '3.0',
                                                 :type => 'pe',
@@ -60,6 +61,10 @@ describe ClassMixedWithDSLInstallUtils do
                                                :pe_ver => '3.0',
                                                :type => 'pe',
                                                :working_dir => '/tmp'} ) }
+  let(:solaris10host) { make_host( 'sol10', { :platform => 'solaris-10-sparc',
+                                                 :pe_ver => '3.0',
+                                                 :type => 'pe',
+                                                 :working_dir => '/tmp'} ) }
   let(:lei_hosts)     { make_hosts( { :pe_ver => '3.0',
                                       :platform => 'linux',
                                       :roles => [ 'agent' ],
@@ -1672,18 +1677,40 @@ describe ClassMixedWithDSLInstallUtils do
       let(:filename) { "puppet-agent-#{master_version}-1.sles11.x86_64" }
       let(:extension) { '.rpm' }
       let(:url) { "#{path}/#{filename}#{extension}" }
-  
+
       it "generates the correct url to download the package" do
         allow( subject ).to receive( :puppet_fact ).and_return( master_version )
         allow( subject ).to receive( :master ).and_return( {} )
-  
+
         expect( hosts[4] ).to receive( :install_package_with_rpm ).with( url ).once
         subject.install_rpm_on_sles11_host(hosts[4], puppet_agent_ver, opts)
       end
     end
 
+    context 'install pkg.gz file in solaris host' do
+      let(:opts) {
+        { :puppet_collection => 'puppet8' }
+      }
+      let(:stream) { opts[:puppet_collection] }
+      let(:puppet_agent_ver) { '8.15.0.65' }
+      let(:agent_downloads_url) { "http://agent-downloads.delivery.puppetlabs.net/puppet-agent" }
+      let(:master_version) { '8.15.0.65.gd2a4b575d' }
+      let(:path) { "#{agent_downloads_url}/#{puppet_agent_ver}/repos/solaris/10/#{stream}" }
+      let(:filename) { "puppet-agent-#{master_version}-1.sparc" }
+      let(:extension) { '.pkg.gz' }
+      let(:url) { "#{path}/#{filename}#{extension}" }
+
+      it 'generates the correct url to download the package' do
+        allow( subject ).to receive( :puppet_fact ).and_return( master_version )
+        allow( subject ).to receive( :master ).and_return( {} )
+
+        expect( hosts[5] ).to receive( :install_package ).with( url ).once
+        subject.install_pkg_on_sol10_sparc_host(hosts[5], puppet_agent_ver, opts)
+      end
+    end
+
     it 'can perform a simple installation' do
-      expect(subject).to receive(:get_mco_setting).and_return({}).twice
+      expect(subject).to receive(:get_mco_setting).and_return({}).thrice
       allow( subject ).to receive( :verify_network_resources).with(hosts, nil)
       allow( subject ).to receive( :on ).and_return( Beaker::Result.new( {}, '' ) )
       allow( subject ).to receive( :fetch_pe ).and_return( true )
