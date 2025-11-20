@@ -1692,19 +1692,51 @@ describe ClassMixedWithDSLInstallUtils do
         { :puppet_collection => 'puppet8' }
       }
       let(:stream) { opts[:puppet_collection] }
-      let(:puppet_agent_ver) { '8.15.0.65' }
+      let(:puppet_agent_ver) { '8.16.0' }
       let(:agent_downloads_url) { "http://agent-downloads.delivery.puppetlabs.net/puppet-agent" }
-      let(:master_version) { '8.15.0.65.gd2a4b575d' }
+      let(:master_version) { '8.16.0' }
       let(:path) { "#{agent_downloads_url}/#{puppet_agent_ver}/repos/solaris/10/#{stream}" }
-      let(:filename) { "puppet-agent-#{master_version}-1.sparc" }
-      let(:extension) { '.pkg.gz' }
-      let(:url) { "#{path}/#{filename}#{extension}" }
+      let(:filename) { "puppet-agent-#{master_version}-1.sparc.pkg.gz" }
+      let(:url) { "#{path}/#{filename}" }
+      let(:vanagon_noask) do
+        <<-NOASK
+# Write the noask file to a temporary directory
+# please see man -s 4 admin for details about this file:
+# http://www.opensolarisforum.org/man/man4/admin.html
+#
+# The key thing we don\'t want to prompt for are conflicting files.
+# The other nocheck settings are mostly defensive to prevent prompts
+# We _do_ want to check for available free space and abort if there is
+# not enough
+mail=
+# Overwrite already installed instances
+instance=overwrite
+# Do not bother checking for partially installed packages
+partial=nocheck
+# Do not bother checking the runlevel
+runlevel=nocheck
+# Do not bother checking package dependencies (We take care of this)
+idepend=nocheck
+rdepend=nocheck
+# DO check for available free space and abort if there isn\'t enough
+space=quit
+# Do not check for setuid files.
+setuid=nocheck
+# Do not check if files conflict with other packages
+conflict=nocheck
+# We have no action scripts.  Do not check for them.
+action=nocheck
+# Install to the default base directory.
+basedir=default
+NOASK
+      end
 
       it 'generates the correct url to download the package' do
         allow( subject ).to receive( :puppet_fact ).and_return( master_version )
         allow( subject ).to receive( :master ).and_return( {} )
 
-        expect( hosts[5] ).to receive( :install_package ).with( url ).once
+        expect( hosts[5] ).to receive( :execute ).with( "echo \"#{vanagon_noask}\" > /var/tmp/vanagon-noask" ).once
+        expect( hosts[5] ).to receive( :execute ).with( "curl --output #{filename} #{url} && gunzip -c #{filename} | pkgadd -d /dev/stdin -a /var/tmp/vanagon-noask all" ).once
         subject.install_pkg_on_sol10_sparc_host(hosts[5], puppet_agent_ver, opts)
       end
     end
