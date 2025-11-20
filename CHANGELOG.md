@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.0](https://github.com/puppetlabs/beaker-pe/tree/3.6.0) (2025-11-20)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.5.0...3.6.0)
+
+**Implemented enhancements:**
+
+- \[PE-42706\]: Add support for installing Puppet agent on Solaris 10 SPARC hosts [\#289](https://github.com/puppetlabs/beaker-pe/pull/289) ([span786](https://github.com/span786))
+
 ## [3.5.0](https://github.com/puppetlabs/beaker-pe/tree/3.5.0) (2025-04-15)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.4.0...3.5.0)
