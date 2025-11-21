@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.1](https://github.com/puppetlabs/beaker-pe/tree/3.6.1) (2025-11-21)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.0...3.6.1)
+
+**Implemented enhancements:**
+
+- \[PE-41604\]: Update Solaris 10 SPARC package installation method in PE Utils [\#291](https://github.com/puppetlabs/beaker-pe/pull/291) ([span786](https://github.com/span786))
+
 ## [3.6.0](https://github.com/puppetlabs/beaker-pe/tree/3.6.0) (2025-11-20)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.5.0...3.6.0)
