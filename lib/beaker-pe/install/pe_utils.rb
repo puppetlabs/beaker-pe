@@ -349,9 +349,40 @@ module Beaker
           # Since sol10-sparc builds are not available in PE, download from agent-downloads.
           vars = agent_package_common_vars(puppet_agent_ver, opts)
           path = "#{vars[:agent_downloads_url]}/#{puppet_agent_ver}/repos/solaris/10/#{vars[:stream]}"
-          filename = "puppet-agent-#{vars[:master_aio_version]}-1.sparc"
-          extension = ".pkg.gz"
-          host.install_package("#{path}/#{filename}#{extension}")
+          filename = "puppet-agent-#{vars[:master_aio_version]}-1.sparc.pkg.gz"
+          vanagon_noask = <<-NOASK
+# Write the noask file to a temporary directory
+# please see man -s 4 admin for details about this file:
+# http://www.opensolarisforum.org/man/man4/admin.html
+#
+# The key thing we don\'t want to prompt for are conflicting files.
+# The other nocheck settings are mostly defensive to prevent prompts
+# We _do_ want to check for available free space and abort if there is
+# not enough
+mail=
+# Overwrite already installed instances
+instance=overwrite
+# Do not bother checking for partially installed packages
+partial=nocheck
+# Do not bother checking the runlevel
+runlevel=nocheck
+# Do not bother checking package dependencies (We take care of this)
+idepend=nocheck
+rdepend=nocheck
+# DO check for available free space and abort if there isn\'t enough
+space=quit
+# Do not check for setuid files.
+setuid=nocheck
+# Do not check if files conflict with other packages
+conflict=nocheck
+# We have no action scripts.  Do not check for them.
+action=nocheck
+# Install to the default base directory.
+basedir=default
+NOASK
+
+          host.execute("echo \"#{vanagon_noask}\" > /var/tmp/vanagon-noask")
+          host.execute("curl --output #{filename} #{path}/#{filename} && gunzip -c #{filename} | pkgadd -d /dev/stdin -a /var/tmp/vanagon-noask all")
         end
 
         # Determine the build package to download on a sles-11 (Intel) host, install that package onto the host.
