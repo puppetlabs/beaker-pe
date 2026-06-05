@@ -828,7 +828,7 @@ NOASK
           # waitforlock in case install_agents_only_on triggers a puppet run on the
           # master that is still in progress when we get here
           step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
-            on(master, puppet_agent("-t #{waitforlock_flag(master)}"), :acceptable_exit_codes => [0,2])
+            on(master, puppet_agent("-t #{waitforlock_flag(master)}".rstrip), :acceptable_exit_codes => [0,2])
           end
         end
 
@@ -2108,7 +2108,7 @@ EOM
           # takes a little longer than usual
           step "First puppet run on infrastructure + postgres node" do
             [master, database, dashboard, pe_postgres].uniq.each do |host|
-              on host, puppet_agent("-t #{waitforlock_flag(host)}"), :acceptable_exit_codes => [0,2]
+              on host, ["puppet agent -t", waitforlock_flag(host)].reject(&:empty?).join(' '), :acceptable_exit_codes => [0,2]
             end
           end
 
@@ -2116,7 +2116,7 @@ EOM
             install_agents_only_on(non_infrastructure, opts)
 
             step "Run puppet to setup mcollective and pxp-agent" do
-              on master, puppet_agent("-t #{waitforlock_flag(master)}"), :acceptable_exit_codes => [0,2]
+              on master, ["puppet agent -t", waitforlock_flag(master)].reject(&:empty?).join(' '), :acceptable_exit_codes => [0,2]
               run_puppet_on_non_infrastructure_nodes(non_infrastructure)
             end
 
@@ -2124,7 +2124,7 @@ EOM
           # waitforlock in case install_agents_only_on triggers a puppet run on the
           # master that is still in progress when we get here
           step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
-            on master, puppet_agent("-t #{waitforlock_flag(master)}"), :acceptable_exit_codes => [0,2]
+            on master, ["puppet agent -t", waitforlock_flag(master)].reject(&:empty?).join(' '), :acceptable_exit_codes => [0,2]
           end
         end
 
