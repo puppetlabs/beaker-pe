@@ -825,8 +825,10 @@ NOASK
 
           install_agents_only_on(agents, opts)
 
+          # waitforlock in case install_agents_only_on triggers a puppet run on the
+          # master that is still in progress when we get here
           step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
-            on(master, puppet_agent('-t'), :acceptable_exit_codes => [0,2])
+            on(master, puppet_agent("-t #{waitforlock_flag(master)}"), :acceptable_exit_codes => [0,2])
           end
         end
 
@@ -2102,9 +2104,11 @@ EOM
             stop_agent_on(pe_infrastructure, :run_in_parallel => true)
           end
 
+          # waitforlock in case stopping the agent run after stopping the agent service
+          # takes a little longer than usual
           step "First puppet run on infrastructure + postgres node" do
             [master, database, dashboard, pe_postgres].uniq.each do |host|
-              on host, 'puppet agent -t', :acceptable_exit_codes => [0,2]
+              on host, puppet_agent("-t #{waitforlock_flag(host)}"), :acceptable_exit_codes => [0,2]
             end
           end
 
@@ -2112,13 +2116,15 @@ EOM
             install_agents_only_on(non_infrastructure, opts)
 
             step "Run puppet to setup mcollective and pxp-agent" do
-              on master, 'puppet agent -t', :acceptable_exit_codes => [0,2]
+              on master, puppet_agent("-t #{waitforlock_flag(master)}"), :acceptable_exit_codes => [0,2]
               run_puppet_on_non_infrastructure_nodes(non_infrastructure)
             end
 
           end
+          # waitforlock in case install_agents_only_on triggers a puppet run on the
+          # master that is still in progress when we get here
           step "Run puppet a second time on the primary to populate services.conf (PE-19054)" do
-            on master, 'puppet agent -t', :acceptable_exit_codes => [0,2]
+            on master, puppet_agent("-t #{waitforlock_flag(master)}"), :acceptable_exit_codes => [0,2]
           end
         end
 
