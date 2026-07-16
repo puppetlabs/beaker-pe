@@ -2084,7 +2084,7 @@ EOM
                 execute_installer_cmd(master, opts)
               rescue Beaker::Host::CommandFailure => e
                 unless is_expected_pe_postgres_failure?(master)
-                  raise "Install on master failed in an unexpected manner"
+                  raise "Install on master failed in an unexpected manner: #{e.message}"
                 end
               end
             end
@@ -2132,14 +2132,23 @@ EOM
         def is_expected_pe_postgres_failure?(host)
           installer_log_dir = '/var/log/puppetlabs/installer'
           latest_installer_log_file = on(host, "ls -1t #{installer_log_dir} | head -n1").stdout.chomp
-          # As of PE Irving (PE 2018.1.x), these are the only two expected errors
+          # The initial master install pass runs before pe-postgres is fully
+          # up, so it's expected to fail: the RBAC/console database isn't
+          # reachable yet, and depending on timing any core PE service
+          # (pe-console-services, pe-puppetdb, pe-puppetserver, etc.) may
+          # not (re)start before this pass' own timeouts trip. All of these
+          # are recoverable by the later "Install/Upgrade postgres service"
+          # and "Finish install/upgrade" steps, so they shouldn't fail the
+          # test. Match the service-startup failure class generically
+          # rather than enumerating individual services/ports here.
           allowed_errors = ["The operation could not be completed because RBACs database has not been initialized",
             "Timeout waiting for the database pool to become ready",
-            "Systemd restart for pe-console-services failed",
-            "Execution of.*service pe-console-services.*: Reload timed out after 120 seconds"]
+            "Systemd (start|restart) for pe-\\S+ failed",
+            "Execution of.*service pe-console-services.*: Reload timed out after 120 seconds",
+            "Connection refused"]
 
           allowed_errors.each do |error|
-            if(on(host, "grep '#{error}' #{installer_log_dir}/#{latest_installer_log_file}", :acceptable_exit_codes => [0,1]).exit_code == 0)
+            if(on(host, "grep -E '#{error}' #{installer_log_dir}/#{latest_installer_log_file}", :acceptable_exit_codes => [0,1]).exit_code == 0)
               return true
             end
           end

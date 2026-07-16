@@ -1305,76 +1305,61 @@ describe ClassMixedWithDSLInstallUtils do
   describe 'is_expected_pe_postgres_failure? method' do
     let(:mono_master) { make_host('mono_master', :pe_ver => '2017.2', :platform => 'ubuntu-16.04-x86_64', :roles => ['master', 'database', 'dashboard']) }
 
-    it 'will return true if it is the RBAC database string matcher' do
+    let(:zero_exit_code_mock) do
+      mock = Object.new
+      allow(mock).to receive(:exit_code).and_return(0)
+      mock
+    end
+    let(:one_exit_code_mock) do
+      mock = Object.new
+      allow(mock).to receive(:exit_code).and_return(1)
+      mock
+    end
+
+    def stub_installer_log_greps(all_but: nil)
       @installer_log_file_name = Beaker::Result.new( {}, '' )
       @installer_log_file_name.stdout = "installer_log_name"
-      zero_exit_code_mock = Object.new
-      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
-      one_exit_code_mock = Object.new
-      allow(one_exit_code_mock).to receive(:exit_code).and_return(1)
       allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+
+      patterns = ["The operation could not be completed because RBACs database has not been initialized",
+        "Timeout waiting for the database pool to become ready",
+        "Systemd (start|restart) for pe-\\S+ failed",
+        "Execution of.*service pe-console-services.*: Reload timed out after 120 seconds",
+        "Connection refused"]
+
+      patterns.each do |pattern|
+        result = (pattern == all_but) ? zero_exit_code_mock : one_exit_code_mock
+        allow(subject).to receive(:on).with(mono_master, "grep -E '#{pattern}' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(result)
+      end
+    end
+
+    it 'will return true if it is the RBAC database string matcher' do
+      stub_installer_log_greps(all_but: "The operation could not be completed because RBACs database has not been initialized")
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
     end
 
     it 'will return true if it is the database pool timeout string matcher' do
-      @installer_log_file_name = Beaker::Result.new( {}, '' )
-      @installer_log_file_name.stdout = "installer_log_name"
-      zero_exit_code_mock = Object.new
-      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
-      one_exit_code_mock = Object.new
-      allow(one_exit_code_mock).to receive(:exit_code).and_return(1)
-      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      stub_installer_log_greps(all_but: "Timeout waiting for the database pool to become ready")
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
     end
 
-    it 'will return true if it is the systemd restart of cosnole-services failure matcher' do
-      @installer_log_file_name = Beaker::Result.new( {}, '' )
-      @installer_log_file_name.stdout = "installer_log_name"
-      zero_exit_code_mock = Object.new
-      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
-      one_exit_code_mock = Object.new
-      allow(one_exit_code_mock).to receive(:exit_code).and_return(1)
-      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+    it 'will return true if it is the systemd start/restart of a pe-* service failure matcher (e.g. pe-console-services, pe-puppetdb, pe-puppetserver)' do
+      stub_installer_log_greps(all_but: "Systemd (start|restart) for pe-\\S+ failed")
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
     end
 
     it 'will return true if it is the console-services reload timeout string matcher' do
-      @installer_log_file_name = Beaker::Result.new( {}, '' )
-      @installer_log_file_name.stdout = "installer_log_name"
-      zero_exit_code_mock = Object.new
-      allow(zero_exit_code_mock).to receive(:exit_code).and_return(0)
-      one_exit_code_mock = Object.new
-      allow(one_exit_code_mock).to receive(:exit_code).and_return(1)
-      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(zero_exit_code_mock)
+      stub_installer_log_greps(all_but: "Execution of.*service pe-console-services.*: Reload timed out after 120 seconds")
+      expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
+    end
+
+    it 'will return true if it is the connection refused matcher' do
+      stub_installer_log_greps(all_but: "Connection refused")
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(true)
     end
 
     it 'will return false if no error messages are matched' do
-      @installer_log_file_name = Beaker::Result.new( {}, '' )
-      @installer_log_file_name.stdout = "installer_log_name"
-      one_exit_code_mock = Object.new
-      allow(one_exit_code_mock).to receive(:exit_code).and_return(1)
-      allow(subject).to receive(:on).with(mono_master, "ls -1t /var/log/puppetlabs/installer | head -n1").and_return(@installer_log_file_name)
-      allow(subject).to receive(:on).with(mono_master, "grep 'The operation could not be completed because RBACs database has not been initialized' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Timeout waiting for the database pool to become ready' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Systemd restart for pe-console-services failed' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
-      allow(subject).to receive(:on).with(mono_master, "grep 'Execution of.*service pe-console-services.*: Reload timed out after 120 seconds' /var/log/puppetlabs/installer/installer_log_name", :acceptable_exit_codes=>[0, 1]).and_return(one_exit_code_mock)
+      stub_installer_log_greps
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(false)
     end
   end
@@ -1458,7 +1443,7 @@ describe ClassMixedWithDSLInstallUtils do
       expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).and_raise(Beaker::Host::CommandFailure).once.ordered
       allow(subject).to receive(:is_expected_pe_postgres_failure?).and_return(false)
 
-      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.to raise_error(RuntimeError, "Install on master failed in an unexpected manner")
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.to raise_error(RuntimeError, /\AInstall on master failed in an unexpected manner: /)
     end
 
     it 'will do a monolithic upgrade of PE with an external postgres that is managed by PE' do
