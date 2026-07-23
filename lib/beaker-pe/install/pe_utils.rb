@@ -43,6 +43,13 @@ module Beaker
         NODE_CONF_PATH = "#{MEEP_DATA_DIR}/conf.d/nodes"
         BEAKER_MEEP_TMP = "pe_conf"
 
+        # Base URL for promoted puppet-agent packages on the internal
+        # build-output host. Newer promoted agents (>= 8.11.0) are no longer
+        # published to the public pm.puppet.com / S3 mirror; el/windows installs
+        # fall back here. This is the same host the sles-11 and
+        # solaris-10-sparc install paths already use.
+        AGENT_DOWNLOADS_URL = 'http://agent-downloads.delivery.puppetlabs.net/puppet-agent'.freeze
+
         # @!macro [new] common_opts
         #   @param [Hash{Symbol=>String}] opts Options to alter execution.
         #   @option opts [Boolean] :silent (false) Do not produce log output
@@ -332,7 +339,7 @@ module Beaker
         # @api private
         def agent_package_common_vars(puppet_agent_ver, opts)
           {
-            agent_downloads_url: "http://agent-downloads.delivery.puppetlabs.net/puppet-agent",
+            agent_downloads_url: AGENT_DOWNLOADS_URL,
             master_aio_version: puppet_fact(master, 'aio_agent_build'),
             stream: opts[:puppet_collection] || "puppet#{puppet_agent_ver[0]}"
           }
@@ -1113,6 +1120,36 @@ NOASK
           raise RuntimeError("#{host.class} not one of Beaker::(Windows|Mac|Unix)::Host")
         end
 
+        # Fetch a promoted puppet-agent package into copy_dir_local. Tries the
+        # primary (pm.puppet.com/S3) promoted mirror first; if that returns a
+        # 404 — newer agents (>= 8.11.0) are no longer published there — fall
+        # back to the internal agent-downloads host. Any non-404 failure is
+        # re-raised unchanged.
+        #
+        # @param [String] release_path Primary base URL, already including the
+        #   /v2/agent/<pe_ver>/<agent_ver>/repos suffix and release_path_end
+        # @param [String] release_path_end Platform suffix ('' unix, '/windows')
+        # @param [String] download_file The package file name
+        # @param [String] copy_dir_local Local destination directory
+        # @param [String] agent_version The puppet-agent version being installed
+        # @api private
+        def fetch_promoted_agent_with_fallback(release_path, release_path_end, download_file, copy_dir_local, agent_version)
+          download_uri = URI.parse("#{release_path}/#{download_file}")
+          redirect = Net::HTTP.start(download_uri.host) { |http| http.head(download_uri.path).response['location'] }
+          primary_base = redirect ? redirect.chomp("/#{download_file}") : release_path
+
+          begin
+            fetch_http_file(primary_base, download_file, copy_dir_local)
+          rescue => e
+            raise unless e.message.include?('404')
+
+            fallback_base = "#{AGENT_DOWNLOADS_URL}/#{agent_version}/repos#{release_path_end}"
+            logger.warn("Promoted puppet-agent not found at #{primary_base}/#{download_file} (#{e.message}); " \
+                        "falling back to #{fallback_base}/#{download_file}")
+            fetch_http_file(fallback_base, download_file, copy_dir_local)
+          end
+        end
+
         # Install shared repo of the puppet-agent on the given host(s).  Downloaded from
         # location of the form PE_PROMOTED_BUILDS_URL/PE_VER/puppet-agent/AGENT_VERSION/repo
         #
@@ -1159,12 +1196,7 @@ NOASK
 
             onhost_copied_download = File.join(onhost_copy_base, download_file)
             onhost_copied_file = File.join(onhost_copy_base, release_file)
-            download_uri = URI.parse("#{release_path}/#{download_file}")
-            if (redirect = Net::HTTP.start(download_uri.host) { |http| http.head(download_uri.path).response['location'] })
-              fetch_http_file(redirect.chomp("/#{download_file}"), download_file, copy_dir_local)
-            else
-              fetch_http_file(release_path, download_file, copy_dir_local)
-            end
+            fetch_promoted_agent_with_fallback(release_path, release_path_end, download_file, copy_dir_local, opts[:puppet_agent_version])
             scp_to host, File.join(copy_dir_local, download_file), onhost_copy_base
 
             if variant == 'windows'
