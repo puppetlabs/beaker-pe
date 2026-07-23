@@ -43,6 +43,13 @@ module Beaker
         NODE_CONF_PATH = "#{MEEP_DATA_DIR}/conf.d/nodes"
         BEAKER_MEEP_TMP = "pe_conf"
 
+        # Base URL for promoted puppet-agent packages on the internal
+        # build-output host. Newer promoted agents (>= 8.11.0) are no longer
+        # published to the public pm.puppet.com / S3 mirror; el/windows installs
+        # fall back here. This is the same host the sles-11 and
+        # solaris-10-sparc install paths already use.
+        AGENT_DOWNLOADS_URL = 'http://agent-downloads.delivery.puppetlabs.net/puppet-agent'.freeze
+
         # @!macro [new] common_opts
         #   @param [Hash{Symbol=>String}] opts Options to alter execution.
         #   @option opts [Boolean] :silent (false) Do not produce log output
@@ -332,7 +339,7 @@ module Beaker
         # @api private
         def agent_package_common_vars(puppet_agent_ver, opts)
           {
-            agent_downloads_url: "http://agent-downloads.delivery.puppetlabs.net/puppet-agent",
+            agent_downloads_url: AGENT_DOWNLOADS_URL,
             master_aio_version: puppet_fact(master, 'aio_agent_build'),
             stream: opts[:puppet_collection] || "puppet#{puppet_agent_ver[0]}"
           }

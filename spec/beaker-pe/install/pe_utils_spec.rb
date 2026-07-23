@@ -106,6 +106,13 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  context 'AGENT_DOWNLOADS_URL' do
+    it 'points at the internal agent-downloads host' do
+      expect(Beaker::DSL::InstallUtils::PEUtils::AGENT_DOWNLOADS_URL)
+        .to eq('http://agent-downloads.delivery.puppetlabs.net/puppet-agent')
+    end
+  end
+
   context '#prep_host_for_upgrade' do
 
     it 'sets per host options before global options' do
