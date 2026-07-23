@@ -6,7 +6,7 @@
 
 **Fixed bugs:**
 
-- \[PE-41009\]: Fall back to agent-downloads when promoted agent is missing from the public mirror [\#306](https://github.com/puppetlabs/beaker-pe/pull/306) ([Magisus](https://github.com/Magisus))
+- [PE-41009]: Fall back to agent-downloads when promoted agent is missing from the public mirror [#306](https://github.com/puppetlabs/beaker-pe/pull/306) ([Magisus](https://github.com/Magisus))
 
 ## [3.6.3](https://github.com/puppetlabs/beaker-pe/tree/3.6.3) (2026-07-16)
 
@@ -14,7 +14,7 @@
 
 **Fixed bugs:**
 
-- \[PE-45082\]: Broaden is\_expected\_pe\_postgres\_failure? allowlist [\#303](https://github.com/puppetlabs/beaker-pe/pull/303) ([steveax](https://github.com/steveax))
+- [PE-45082]: Broaden is_expected_pe_postgres_failure? allowlist [#303](https://github.com/puppetlabs/beaker-pe/pull/303) ([steveax](https://github.com/steveax))
 
 ## [3.6.2](https://github.com/puppetlabs/beaker-pe/tree/3.6.2) (2026-06-05)
 
@@ -22,7 +22,7 @@
 
 **Fixed bugs:**
 
-- Add waitforlock flag to second puppet runs to prevent lock collisions [\#300](https://github.com/puppetlabs/beaker-pe/pull/300) ([jonathannewman](https://github.com/jonathannewman))
+- Add waitforlock flag to second puppet runs to prevent lock collisions [#300](https://github.com/puppetlabs/beaker-pe/pull/300) ([jonathannewman](https://github.com/jonathannewman))
 
 ## [3.6.1](https://github.com/puppetlabs/beaker-pe/tree/3.6.1) (2025-11-21)
 
