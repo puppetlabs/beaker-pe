@@ -113,6 +113,66 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  context '#fetch_promoted_agent_with_fallback' do
+    let(:download_file) { 'puppet-agent-el-8-x86_64.tar.gz' }
+    let(:release_path)  { 'https://pm.puppet.com/v2/agent/2023.8.3/8.11.0/repos' }
+    let(:s3_base)       { 'https://s3.amazonaws.com/puppet-agents/puppet-agent/8.11.0/repos' }
+    let(:agent_dl_base) { 'http://agent-downloads.delivery.puppetlabs.net/puppet-agent/8.11.0/repos' }
+
+    before do
+      # HEAD on the pm.puppet.com URL resolves (via 302) to the S3 promoted mirror.
+      allow(Net::HTTP).to receive(:start).with('pm.puppet.com')
+        .and_return("#{s3_base}/#{download_file}")
+    end
+
+    it 'fetches from the primary mirror when the package is present' do
+      expect(subject).to receive(:fetch_http_file)
+        .with(s3_base, download_file, 'tmp/repo_configs/el')
+      expect(subject).not_to receive(:fetch_http_file)
+        .with(a_string_including('agent-downloads'), anything, anything)
+
+      subject.fetch_promoted_agent_with_fallback(release_path, '', download_file, 'tmp/repo_configs/el', '8.11.0')
+    end
+
+    it 'falls back to agent-downloads on a 404' do
+      allow(subject).to receive(:fetch_http_file)
+        .with(s3_base, download_file, 'tmp/repo_configs/el')
+        .and_raise("Failed to fetch_remote_file '#{s3_base}/#{download_file}' (404 Not Found)")
+      expect(subject).to receive(:fetch_http_file)
+        .with(agent_dl_base, download_file, 'tmp/repo_configs/el')
+
+      subject.fetch_promoted_agent_with_fallback(release_path, '', download_file, 'tmp/repo_configs/el', '8.11.0')
+    end
+
+    it 're-raises non-404 fetch errors without falling back' do
+      allow(subject).to receive(:fetch_http_file)
+        .with(s3_base, download_file, 'tmp/repo_configs/el')
+        .and_raise('Failed to fetch_remote_file (500 Server Error)')
+      expect(subject).not_to receive(:fetch_http_file)
+        .with(a_string_including('agent-downloads'), anything, anything)
+
+      expect {
+        subject.fetch_promoted_agent_with_fallback(release_path, '', download_file, 'tmp/repo_configs/el', '8.11.0')
+      }.to raise_error(/500/)
+    end
+
+    it 'preserves the /windows suffix in the fallback URL' do
+      win_file         = 'puppet-agent-x64.msi'
+      win_release_path = 'https://pm.puppet.com/v2/agent/2023.8.3/8.11.0/repos/windows'
+      win_s3_base      = "#{s3_base}/windows"
+      win_dl_base      = "#{agent_dl_base}/windows"
+      allow(Net::HTTP).to receive(:start).with('pm.puppet.com')
+        .and_return("#{win_s3_base}/#{win_file}")
+      allow(subject).to receive(:fetch_http_file)
+        .with(win_s3_base, win_file, 'tmp/repo_configs/windows')
+        .and_raise("Failed to fetch_remote_file '#{win_s3_base}/#{win_file}' (404 Not Found)")
+      expect(subject).to receive(:fetch_http_file)
+        .with(win_dl_base, win_file, 'tmp/repo_configs/windows')
+
+      subject.fetch_promoted_agent_with_fallback(win_release_path, '/windows', win_file, 'tmp/repo_configs/windows', '8.11.0')
+    end
+  end
+
   context '#prep_host_for_upgrade' do
 
     it 'sets per host options before global options' do
