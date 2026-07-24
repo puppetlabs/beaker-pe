@@ -445,13 +445,13 @@ module Beaker
         end
 
         #PE-32680, GPG expired on older PE versions, need to update with a new GPG key on the primary server
-        #only affects PE versions 2019.8.4 and earlier, and only needed for debian, ubuntu, and sles agent platforms
+        #only affects PE versions 2023.8.0 and earlier, and only needed for debian, ubuntu, and sles agent platforms
         # @param [Host] host to see if we need to update the gpg key
         # @param [String] location of the GPG key we intend to overwrite
-        # If someone is using this gem and is not on the PE private network, they need to download the new private GPG key and host
-        # it somewhere, then set the URL as an enviromental variable GPG_URL.
+        # Defaults to Puppet's public release key (same key, renewed self-signature); override
+        # via the GPG_URL environment variable if a different source is needed.
         def gpg_key_overwrite(host, location)
-          gpg_url = ENV['GPG_URL'] || 'https://artifactory.delivery.puppetlabs.net/artifactory/generic__local/extended_gpg_key.asc'
+          gpg_url = ENV['GPG_URL'] || 'https://yum.puppet.com/RPM-GPG-KEY-puppet'
           case location
           when 'tarball'
             path_to_gpg_key = "#{host['working_dir']}/#{host['dist']}/packages/GPG-KEY-puppet"
@@ -463,9 +463,20 @@ module Beaker
             raise(StandardError, "gpg_key_overwrite requires a valid location: tarball, or pe_repo. #{location} was supplied")
           end
 
-          if (host['roles'].include?('master') || host['roles'].include?('pe_postgres')) && version_is_less(host[:pe_ver], '2019.8.5') && hosts.any? {|agent| agent['platform'] =~ /(debian)|(ubuntu)|(sles)/}
+          if (host['roles'].include?('master') || host['roles'].include?('pe_postgres')) && version_is_less(host[:pe_ver], '2023.8.1') && hosts.any? {|agent| agent['platform'] =~ /(debian)|(ubuntu)|(sles)/}
+            # Some PE releases also ship a separately-dated copy of this key alongside the
+            # undated one (e.g. GPG-KEY-puppet-2025-04-06), which frictionless install scripts
+            # may reference directly. Find any such siblings before we remove the undated file,
+            # so we can refresh them with the same content too.
+            gpg_key_dir = File.dirname(path_to_gpg_key)
+            gpg_key_basename = File.basename(path_to_gpg_key)
+            dated_gpg_keys = on(host, "ls #{gpg_key_dir}/#{gpg_key_basename}-* 2>/dev/null", :acceptable_exit_codes => [0,1,2]).stdout.split("\n")
+
             on(host, "rm -f #{path_to_gpg_key}")
-            on(host, "curl #{gpg_url} --output #{path_to_gpg_key}")
+            on(host, "curl --fail #{gpg_url} --output #{path_to_gpg_key}")
+            dated_gpg_keys.each do |dated_gpg_key|
+              on(host, "cp #{path_to_gpg_key} #{dated_gpg_key}")
+            end
             if location == 'pe_repo'
               gpg_key_overwrite(host, 'pe_repo_env')
             elsif location == 'pe_repo_env'
