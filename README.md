@@ -31,6 +31,27 @@ of key concepts.
 involved in addressing key problems and use-cases. For instance, checkout our
 [How-to Install Puppet Enterprise doc](docs/how_to/install_puppet_enterprise.md).
 
+## Configuration
+
+### Running install/upgrade steps serially (`pe_run_in_parallel`)
+
+Several PE install/upgrade steps act on many hosts at once by `fork()`ing a child
+process per host, each with its own SSH connection. **On macOS, forking a Ruby
+process that has already used `Net::SSH` deadlocks the child**, so these steps hang
+until beaker's watchdog kills them (`RuntimeError: Child process ran longer than
+timeout of 1800`). This does not happen on Linux/CI.
+
+Because of this, beaker-pe defaults to running these steps **serially on macOS** and
+**in parallel on every other platform**. You can override the default either way:
+
+- Option: set `pe_run_in_parallel: true` (or `false`) in your beaker options.
+- Env var: `export BEAKER_PE_RUN_IN_PARALLEL=1` (or `0`) before running beaker.
+
+Precedence, highest first: the `BEAKER_PE_RUN_IN_PARALLEL` env var, then the
+`pe_run_in_parallel` option, then the platform default (`false` on macOS, `true`
+elsewhere). For the env var, `1`, `true`, or `yes` force parallel; `0`, `false`, or
+`no` force serial.
+
 ## Upgrading from 0.y to 1.y?
 
 If you've used beaker-pe previously (during the 0.y versions), you'll

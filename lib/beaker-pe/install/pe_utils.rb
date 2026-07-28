@@ -1519,12 +1519,27 @@ NOASK
             (host['platform'] =~ /windows-2008r2/ && (!version_is_less(host['pe_ver'], '2016.4.99') && version_is_less(host['pe_ver'], '2016.5.99') && !version_is_less(host['pe_ver'], '3.99')))
         end
 
+        # Whether PE install/upgrade steps that act on many hosts should fork and
+        # run in parallel. Forking + Net::SSH deadlocks on macOS, so the default is
+        # serial there and parallel everywhere else; a developer can override either
+        # way. Precedence, highest first:
+        #   BEAKER_PE_RUN_IN_PARALLEL env var > :pe_run_in_parallel option > default
+        #   (false on macOS, true elsewhere)
+        # @api private
+        # @return [Boolean]
+        def pe_run_in_parallel?
+          env = ENV['BEAKER_PE_RUN_IN_PARALLEL']
+          return %w[1 true yes].include?(env.downcase) unless env.nil? || env.empty?
+          opt = options[:pe_run_in_parallel]
+          opt.nil? ? (RUBY_PLATFORM !~ /darwin/) : !!opt
+        end
+
         # Runs puppet on all nodes, unless they have the roles: master,database,console/dashboard
         # @param [Array<Host>] hosts The sorted hosts to install or upgrade PE on
         def run_puppet_on_non_infrastructure_nodes(all_hosts)
           pe_infrastructure = select_hosts({:roles => ['master', 'compile_master', 'pe_compiler', 'dashboard', 'database']}, all_hosts)
           non_infrastructure = all_hosts.reject{|host| pe_infrastructure.include? host}
-          on non_infrastructure, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => true
+          on non_infrastructure, puppet_agent('-t'), :acceptable_exit_codes => [0,2], :run_in_parallel => pe_run_in_parallel?
         end
 
         # Whether or not PE should be managing the puppet service on agents.
@@ -2133,7 +2148,7 @@ EOM
           end
 
           step "Stop agent service on infrastructure nodes" do
-            stop_agent_on(pe_infrastructure, :run_in_parallel => true)
+            stop_agent_on(pe_infrastructure, :run_in_parallel => pe_run_in_parallel?)
           end
 
           # waitforlock in case stopping the agent run after stopping the agent service
@@ -2488,7 +2503,7 @@ EOM
             end
 
              step "Install agents" do
-               block_on(agent_nodes, {:run_in_parallel => true}) do |host|
+               block_on(agent_nodes, {:run_in_parallel => pe_run_in_parallel?}) do |host|
                  install_ca_cert_on(host, opts)
                  on(host, installer_cmd(host, opts))
                end
@@ -2500,13 +2515,13 @@ EOM
              end
 
              step "Stop puppet agents to avoid interfering with tests" do
-               stop_agent_on(agent_nodes, :run_in_parallel => true)
+               stop_agent_on(agent_nodes, :run_in_parallel => pe_run_in_parallel?)
              end
 
              # waitforlock in case stopping the agent run after stopping the agent service
              # takes a little longer than usual
              step "Run puppet on all agent nodes" do
-               block_on(agent_nodes, {:run_in_parallel => true}) do |host|
+               block_on(agent_nodes, {:run_in_parallel => pe_run_in_parallel?}) do |host|
                  on host, puppet_agent("-t #{waitforlock_flag(host)}"), :acceptable_exit_codes => [0,2]
                end
              end
