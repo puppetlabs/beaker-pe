@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.5](https://github.com/puppetlabs/beaker-pe/tree/3.6.5) (2026-07-29)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.4...3.6.5)
+
+**Implemented enhancements:**
+
+- (PE-45366) Add pe_run_in_parallel option, serial by default on macOS [#309](https://github.com/puppetlabs/beaker-pe/pull/309) ([Magisus](https://github.com/Magisus))
+
 ## [3.6.4](https://github.com/puppetlabs/beaker-pe/tree/3.6.4) (2026-07-23)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.3...3.6.4)
