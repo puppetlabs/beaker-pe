@@ -25,6 +25,17 @@ class ClassMixedWithDSLInstallUtils
 end
 
 describe ClassMixedWithDSLInstallUtils do
+  # Neutralize BEAKER_PE_RUN_IN_PARALLEL and pin RUBY_PLATFORM to a non-macOS value
+  # for every example in this file, so that pre-existing specs asserting the default
+  # (:run_in_parallel => true) are not affected by whatever a developer happens to
+  # have exported in their shell or by running the suite on a Mac (where the default
+  # is serial). Examples that exercise the macOS default stub RUBY_PLATFORM to darwin.
+  before do
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with('BEAKER_PE_RUN_IN_PARALLEL').and_return(nil)
+    stub_const('RUBY_PLATFORM', 'x86_64-linux')
+  end
+
   let(:presets)       { Beaker::Options::Presets.new }
   let(:opts)          { presets.presets.merge(presets.env_vars) }
   let(:basic_hosts)   { make_hosts( { :pe_ver => '3.0',
@@ -612,6 +623,35 @@ describe ClassMixedWithDSLInstallUtils do
     end
   end
 
+  describe '#run_puppet_on_non_infrastructure_nodes parallel wiring' do
+    let(:master)   { make_host('master', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => ['master', 'database', 'dashboard']) }
+    let(:el_agent) { make_host('agent', :pe_ver => '2016.4', :platform => 'el-7-x86_64', :roles => ['frictionless']) }
+
+    before do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with('BEAKER_PE_RUN_IN_PARALLEL').and_return(nil)
+    end
+
+    it 'passes run_in_parallel => false when the option disables it' do
+      subject.options[:pe_run_in_parallel] = false
+      expect(subject).to receive(:on).with(
+        [el_agent],
+        anything,
+        hash_including(:run_in_parallel => false)
+      ).once
+      subject.run_puppet_on_non_infrastructure_nodes([master, el_agent])
+    end
+
+    it 'passes run_in_parallel => true by default' do
+      expect(subject).to receive(:on).with(
+        [el_agent],
+        anything,
+        hash_including(:run_in_parallel => true)
+      ).once
+      subject.run_puppet_on_non_infrastructure_nodes([master, el_agent])
+    end
+  end
+
   describe 'install_via_msi?' do
     it 'returns true if pe_version is before PE 2016.4.0' do
       the_host = winhost.dup
@@ -659,6 +699,71 @@ describe ClassMixedWithDSLInstallUtils do
       expect(subject.install_via_msi?(the_host)).to eq(false)
     end
 
+  end
+
+  describe '#pe_run_in_parallel?' do
+    before do
+      # Default: pretend the env var is unset unless a specific example sets it.
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with('BEAKER_PE_RUN_IN_PARALLEL').and_return(nil)
+    end
+
+    context 'with no option and no env var' do
+      it 'defaults to true off macOS' do
+        stub_const('RUBY_PLATFORM', 'x86_64-linux')
+        expect(subject.send(:pe_run_in_parallel?)).to eq(true)
+      end
+
+      it 'defaults to false on macOS' do
+        stub_const('RUBY_PLATFORM', 'x86_64-darwin21')
+        expect(subject.send(:pe_run_in_parallel?)).to eq(false)
+      end
+    end
+
+    context 'with the :pe_run_in_parallel option' do
+      it 'returns false when the option is false' do
+        subject.options[:pe_run_in_parallel] = false
+        expect(subject.send(:pe_run_in_parallel?)).to eq(false)
+      end
+
+      it 'returns true when the option is true' do
+        subject.options[:pe_run_in_parallel] = true
+        expect(subject.send(:pe_run_in_parallel?)).to eq(true)
+      end
+    end
+
+    context 'with the BEAKER_PE_RUN_IN_PARALLEL env var set' do
+      %w[1 true yes TRUE Yes].each do |truthy|
+        it "returns true for #{truthy.inspect}" do
+          allow(ENV).to receive(:[]).with('BEAKER_PE_RUN_IN_PARALLEL').and_return(truthy)
+          expect(subject.send(:pe_run_in_parallel?)).to eq(true)
+        end
+      end
+
+      %w[0 false no off].each do |falsey|
+        it "returns false for #{falsey.inspect}" do
+          allow(ENV).to receive(:[]).with('BEAKER_PE_RUN_IN_PARALLEL').and_return(falsey)
+          expect(subject.send(:pe_run_in_parallel?)).to eq(false)
+        end
+      end
+
+      it 'overrides the option (env true beats option false)' do
+        subject.options[:pe_run_in_parallel] = false
+        allow(ENV).to receive(:[]).with('BEAKER_PE_RUN_IN_PARALLEL').and_return('1')
+        expect(subject.send(:pe_run_in_parallel?)).to eq(true)
+      end
+
+      it 'overrides the option (env false beats option true)' do
+        subject.options[:pe_run_in_parallel] = true
+        allow(ENV).to receive(:[]).with('BEAKER_PE_RUN_IN_PARALLEL').and_return('0')
+        expect(subject.send(:pe_run_in_parallel?)).to eq(false)
+      end
+
+      it 'falls through to the default when the env var is empty' do
+        allow(ENV).to receive(:[]).with('BEAKER_PE_RUN_IN_PARALLEL').and_return('')
+        expect(subject.send(:pe_run_in_parallel?)).to eq(true)
+      end
+    end
   end
 
   describe 'higgs installer' do
