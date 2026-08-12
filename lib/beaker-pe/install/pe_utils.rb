@@ -1840,11 +1840,33 @@ EOM
           if version_is_less(host['pe_ver'], '2016.1.0')
             return true
           end
+
+          ssl_port = options[:puppetdb_port_ssl] || 8081
+          nonssl_port = options[:puppetdb_port_nonssl] || 8080
+
           Timeout.timeout(60) do
             match = nil
             while not match
-              output = on(host, "curl -s http://localhost:8080/pdb/meta/v1/version", :accept_all_exit_codes => true)
+              # Prefer the ssl status endpoint. PuppetDB's jetty listener is
+              # explicitly configured with `client-auth = want`, not `need`
+              # (see puppet_enterprise::puppetdb::jetty_ini.pp), and
+              # /pdb/meta/v1/version -- like the rest of /status/v1/* -- is
+              # allow-unauthenticated in PuppetDB's auth.conf. So `curl -k`
+              # gets a real, validated response with no client cert needed,
+              # and it's the only path that still works once the cleartext
+              # listener is disabled by default (PE-45384/PE-44906,
+              # SECVULN-1792; PE-45827).
+              output = on(host, "curl -s -k https://localhost:#{ssl_port}/pdb/meta/v1/version", :accept_all_exit_codes => true)
               match = output.stdout =~ /version.*\d+\.\d+\.\d+/
+
+              # Fall back to the cleartext port for older or nonstandard
+              # configurations where the ssl endpoint doesn't behave as
+              # above.
+              if !match
+                output = on(host, "curl -s http://localhost:#{nonssl_port}/pdb/meta/v1/version", :accept_all_exit_codes => true)
+                match = output.stdout =~ /version.*\d+\.\d+\.\d+/
+              end
+
               sleep 1
             end
           end
