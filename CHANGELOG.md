@@ -1,28 +1,45 @@
 # Changelog
 
-## [3.6.5](https://github.com/puppetlabs/beaker-pe/tree/3.6.5) (2026-07-29)
+## [3.6.6](https://github.com/puppetlabs/beaker-pe/tree/3.6.6) (2026-08-12)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.5...3.6.6)
+
+**Fixed bugs:**
+
+- \(PE-45827\) Prefer the ssl status endpoint for PuppetDB liveness validation [\#311](https://github.com/puppetlabs/beaker-pe/pull/311) ([jonathannewman](https://github.com/jonathannewman))
+
+## [3.6.5](https://github.com/puppetlabs/beaker-pe/tree/3.6.5) (2026-07-30)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.4...3.6.5)
 
 **Implemented enhancements:**
 
-- (PE-45366) Add pe_run_in_parallel option, serial by default on macOS [#309](https://github.com/puppetlabs/beaker-pe/pull/309) ([Magisus](https://github.com/Magisus))
+- \(PE-45366\) Add pe\_run\_in\_parallel option, serial by default on macOS [\#309](https://github.com/puppetlabs/beaker-pe/pull/309) ([Magisus](https://github.com/Magisus))
+
+**Merged pull requests:**
+
+- \(maint\) prepare for release 3.6.5 [\#310](https://github.com/puppetlabs/beaker-pe/pull/310) ([Magisus](https://github.com/Magisus))
 
 ## [3.6.4](https://github.com/puppetlabs/beaker-pe/tree/3.6.4) (2026-07-23)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.3...3.6.4)
 
-**Fixed bugs:**
+**Merged pull requests:**
 
-- [PE-41009]: Fall back to agent-downloads when promoted agent is missing from the public mirror [#306](https://github.com/puppetlabs/beaker-pe/pull/306) ([Magisus](https://github.com/Magisus))
+- \(maint\) prepare for release 3.6.4 [\#307](https://github.com/puppetlabs/beaker-pe/pull/307) ([Magisus](https://github.com/Magisus))
+- \(PE-41009\) Fall back to agent-downloads when promoted agent is missing from public mirror [\#306](https://github.com/puppetlabs/beaker-pe/pull/306) ([Magisus](https://github.com/Magisus))
 
 ## [3.6.3](https://github.com/puppetlabs/beaker-pe/tree/3.6.3) (2026-07-16)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.2...3.6.3)
 
-**Fixed bugs:**
+**Implemented enhancements:**
 
-- [PE-45082]: Broaden is_expected_pe_postgres_failure? allowlist [#303](https://github.com/puppetlabs/beaker-pe/pull/303) ([steveax](https://github.com/steveax))
+- \(PE-45082\) Broaden is\_expected\_pe\_postgres\_failure? allowlist [\#303](https://github.com/puppetlabs/beaker-pe/pull/303) ([steveax](https://github.com/steveax))
+
+**Merged pull requests:**
+
+- \(maint\) prepare for release 3.6.3 [\#304](https://github.com/puppetlabs/beaker-pe/pull/304) ([steveax](https://github.com/steveax))
 
 ## [3.6.2](https://github.com/puppetlabs/beaker-pe/tree/3.6.2) (2026-06-05)
 
@@ -30,7 +47,7 @@
 
 **Fixed bugs:**
 
-- Add waitforlock flag to second puppet runs to prevent lock collisions [#300](https://github.com/puppetlabs/beaker-pe/pull/300) ([jonathannewman](https://github.com/jonathannewman))
+- Add waitforlock\_flag to second puppet runs to prevent lock collisions [\#300](https://github.com/puppetlabs/beaker-pe/pull/300) ([jonathannewman](https://github.com/jonathannewman))
 
 ## [3.6.1](https://github.com/puppetlabs/beaker-pe/tree/3.6.1) (2025-11-21)
 
@@ -54,15 +71,20 @@
 
 **Implemented enhancements:**
 
-- \(PE-40793\) Follow https->>http redirects [\#287](https://github.com/puppetlabs/beaker-pe/pull/287) ([tvpartytonight](https://github.com/tvpartytonight))
+- \(maint\) prepare for 3.5.0 release [\#288](https://github.com/puppetlabs/beaker-pe/pull/288) ([tvpartytonight](https://github.com/tvpartytonight))
+- \(PE-40793\) Follow https-\>\>http redirects [\#287](https://github.com/puppetlabs/beaker-pe/pull/287) ([tvpartytonight](https://github.com/tvpartytonight))
 
-## [3.4.0](https://github.com/puppetlabs/beaker-pe/tree/3.4.0) (2025-03-12)
+## [3.4.0](https://github.com/puppetlabs/beaker-pe/tree/3.4.0) (2025-03-13)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.3.1...3.4.0)
 
 **Implemented enhancements:**
 
-- \(PE-40143\) Add ruby 3.2 support [\#285](https://github.com/puppetlabs/beaker-pe/pull/285) ([tvpartytonight](https://github.com/tvpartytonight))
+- \(PE-40143\) Update beaker-pe for ruby 3.2 compatibility [\#285](https://github.com/puppetlabs/beaker-pe/pull/285) ([tvpartytonight](https://github.com/tvpartytonight))
+
+**Merged pull requests:**
+
+- \(maint\) prep for 3.4.0 release [\#286](https://github.com/puppetlabs/beaker-pe/pull/286) ([tvpartytonight](https://github.com/tvpartytonight))
 
 ## [3.3.1](https://github.com/puppetlabs/beaker-pe/tree/3.3.1) (2024-12-05)
 
@@ -728,7 +750,7 @@
 **Merged pull requests:**
 
 - PE-11351 clear puppet jenkins slaves [\#98](https://github.com/puppetlabs/beaker-pe/pull/98) ([mwbutcher](https://github.com/mwbutcher))
-- \(maint\) Add beaker-abs to gemspec [\#97](https://github.com/puppetlabs/beaker-pe/pull/97) ([smcelmurry](https://github.com/smcelmurry))
+- \(maint\) Add beaker-abs to gemspec [\#97](https://github.com/puppetlabs/beaker-pe/pull/97) ([junebug-spencer](https://github.com/junebug-spencer))
 - \(RE-9922\) Migrate from stickler to artifactory [\#96](https://github.com/puppetlabs/beaker-pe/pull/96) ([sarameisburger](https://github.com/sarameisburger))
 
 ## [1.32.0](https://github.com/puppetlabs/beaker-pe/tree/1.32.0) (2018-01-09)
@@ -799,7 +821,6 @@
 
 - Fix agent installation failure caused by previous commit [\#87](https://github.com/puppetlabs/beaker-pe/pull/87) ([shaigy](https://github.com/shaigy))
 - PE-22051 Changes for adding loadbalancer to LEI job [\#86](https://github.com/puppetlabs/beaker-pe/pull/86) ([shaigy](https://github.com/shaigy))
-- \(MAINT\) Fix linux masterless installation [\#70](https://github.com/puppetlabs/beaker-pe/pull/70) ([Renelast](https://github.com/Renelast))
 
 ## [1.23.0](https://github.com/puppetlabs/beaker-pe/tree/1.23.0) (2017-09-15)
 
@@ -1153,7 +1174,6 @@
 
 - \(maint\) Remove leftover comments [\#7](https://github.com/puppetlabs/beaker-pe/pull/7) ([tvpartytonight](https://github.com/tvpartytonight))
 - BKR-656 [\#6](https://github.com/puppetlabs/beaker-pe/pull/6) ([tvpartytonight](https://github.com/tvpartytonight))
-- Fixes windows masterless installation [\#1](https://github.com/puppetlabs/beaker-pe/pull/1) ([Renelast](https://github.com/Renelast))
 
 ## [0.1.2](https://github.com/puppetlabs/beaker-pe/tree/0.1.2) (2016-04-05)
 
