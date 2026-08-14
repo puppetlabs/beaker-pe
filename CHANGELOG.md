@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.7](https://github.com/puppetlabs/beaker-pe/tree/3.6.7) (2026-08-14)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.6...3.6.7)
+
+**Fixed bugs:**
+
+- \(PE-45827\) Query PuppetDB's unauthenticated status endpoint in check\_puppetdb\_status\_endpoint [\#313](https://github.com/puppetlabs/beaker-pe/pull/313) ([steveax](https://github.com/steveax))
+
 ## [3.6.6](https://github.com/puppetlabs/beaker-pe/tree/3.6.6) (2026-08-12)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.5...3.6.6)
