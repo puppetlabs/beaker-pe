@@ -1850,21 +1850,31 @@ EOM
               # Prefer the ssl status endpoint. PuppetDB's jetty listener is
               # explicitly configured with `client-auth = want`, not `need`
               # (see puppet_enterprise::puppetdb::jetty_ini.pp), and
-              # /pdb/meta/v1/version -- like the rest of /status/v1/* -- is
-              # allow-unauthenticated in PuppetDB's auth.conf. So `curl -k`
-              # gets a real, validated response with no client cert needed,
-              # and it's the only path that still works once the cleartext
-              # listener is disabled by default (PE-45384/PE-44906,
-              # SECVULN-1792; PE-45827).
-              output = on(host, "curl -s -k https://localhost:#{ssl_port}/pdb/meta/v1/version", :accept_all_exit_codes => true)
-              match = output.stdout =~ /version.*\d+\.\d+\.\d+/
+              # /status/v1/* is allow-unauthenticated in PuppetDB's auth.conf,
+              # so `curl -k` gets a real, content-validated response with no
+              # client cert needed. This is the only path that still works
+              # once the cleartext listener is disabled by default
+              # (PE-45384/PE-44906, SECVULN-1792).
+              #
+              # NB: /pdb/meta/v1/version is NOT allow-unauthenticated -- it
+              # requires a cert or token, so a bare `curl -k` against it is
+              # rejected with "Must supply a certificate or token". PE-45827
+              # switched this check to ssl but kept /pdb/meta/v1/version, so it
+              # still hard-failed ("PuppetDB took too long to start") on
+              # cleartext-disabled upgrade hosts. Query the status endpoint and
+              # validate the running state instead, matching the working
+              # sleep_until_puppetdb_started (beaker-puppet, PE-45697). PE-45827.
+              status_endpoint = "status/v1/services/puppetdb-status"
+              running = /"state"\s*:\s*"running"/
+              output = on(host, "curl -s -k https://localhost:#{ssl_port}/#{status_endpoint}", :accept_all_exit_codes => true)
+              match = output.stdout =~ running
 
               # Fall back to the cleartext port for older or nonstandard
               # configurations where the ssl endpoint doesn't behave as
               # above.
               if !match
-                output = on(host, "curl -s http://localhost:#{nonssl_port}/pdb/meta/v1/version", :accept_all_exit_codes => true)
-                match = output.stdout =~ /version.*\d+\.\d+\.\d+/
+                output = on(host, "curl -s http://localhost:#{nonssl_port}/#{status_endpoint}", :accept_all_exit_codes => true)
+                match = output.stdout =~ running
               end
 
               sleep 1

@@ -2671,24 +2671,25 @@ NOASK
       subject.check_puppetdb_status_endpoint(unixhost)
     end
 
-    it 'succeeds via the ssl endpoint alone, without ever falling back to cleartext (PE-45827)' do
+    it 'queries the allow-unauthenticated ssl status endpoint, not /pdb/meta (PE-45827)' do
       allow(subject).to receive(:version_is_less).and_return(false)
       allow(subject).to receive(:sleep)
-      ssl_result = double(Beaker::Result, :stdout => '{"version":"7.12.1"}', :exit_code => 0)
-      expect(subject).to receive(:on).with(anything, %r{-k https://localhost:8081/}, anything).once.and_return(ssl_result)
+      ssl_result = double(Beaker::Result, :stdout => '{"puppetdb-status":{"state":"running"}}', :exit_code => 0)
+      expect(subject).to receive(:on).with(anything, %r{-k https://localhost:8081/status/v1/services/puppetdb-status}, anything).once.and_return(ssl_result)
+      expect(subject).not_to receive(:on).with(anything, %r{/pdb/meta/}, anything)
       expect(subject).not_to receive(:on).with(anything, %r{http://localhost:8080/}, anything)
 
       expect { subject.check_puppetdb_status_endpoint(unixhost) }.not_to raise_error
     end
 
-    context 'when the ssl endpoint never returns valid content (older or nonstandard config)' do
-      it 'falls back to the cleartext endpoint' do
+    context 'when the ssl endpoint never returns a running state (older or nonstandard config)' do
+      it 'falls back to the cleartext status endpoint' do
         allow(subject).to receive(:version_is_less).and_return(false)
         allow(subject).to receive(:sleep)
         ssl_result = double(Beaker::Result, :stdout => '', :exit_code => 0)
-        nonssl_result = double(Beaker::Result, :stdout => '{"version":"7.12.1"}', :exit_code => 0)
-        expect(subject).to receive(:on).with(anything, %r{-k https://localhost:8081/}, anything).once.ordered.and_return(ssl_result)
-        expect(subject).to receive(:on).with(anything, %r{http://localhost:8080/}, anything).once.ordered.and_return(nonssl_result)
+        nonssl_result = double(Beaker::Result, :stdout => '{"puppetdb-status":{"state":"running"}}', :exit_code => 0)
+        expect(subject).to receive(:on).with(anything, %r{-k https://localhost:8081/status/v1/services/puppetdb-status}, anything).once.ordered.and_return(ssl_result)
+        expect(subject).to receive(:on).with(anything, %r{http://localhost:8080/status/v1/services/puppetdb-status}, anything).once.ordered.and_return(nonssl_result)
 
         expect { subject.check_puppetdb_status_endpoint(unixhost) }.not_to raise_error
       end
