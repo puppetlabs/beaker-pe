@@ -535,7 +535,7 @@ NOASK
             # so we can refresh them with the same content too.
             gpg_key_dir = File.dirname(path_to_gpg_key)
             gpg_key_basename = File.basename(path_to_gpg_key)
-            dated_gpg_keys = on(host, "ls #{gpg_key_dir}/#{gpg_key_basename}-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] 2>/dev/null", :acceptable_exit_codes => [0,1,2]).stdout.split("\n")
+            dated_gpg_keys = on(host, "ls -1 #{gpg_key_dir}/#{gpg_key_basename}-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] 2>/dev/null", :acceptable_exit_codes => [0,1,2]).stdout.split("\n")
 
             on(host, "rm -f #{path_to_gpg_key}")
             # The puppet-agent tarball fetch above already uses retry_on to survive network
