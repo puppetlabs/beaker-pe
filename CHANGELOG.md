@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.8](https://github.com/puppetlabs/beaker-pe/tree/3.6.8) (2026-09-17)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.7...3.6.8)
+
+**Merged pull requests:**
+
+- \(PE-32680\) Fix GPG key refresh for PE 2023.8.0 and earlier [\#308](https://github.com/puppetlabs/beaker-pe/pull/308) ([cthorn42](https://github.com/cthorn42))
+
 ## [3.6.7](https://github.com/puppetlabs/beaker-pe/tree/3.6.7) (2026-08-14)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.6...3.6.7)
@@ -108,19 +116,19 @@
 
 ## [2.19.0](https://github.com/puppetlabs/beaker-pe/tree/2.19.0) (2024-06-21)
 
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.2.0...2.19.0)
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.18.0...2.19.0)
 
 **Implemented enhancements:**
 
 - \(PE-38685\) Beaker 6 upgrade [\#281](https://github.com/puppetlabs/beaker-pe/pull/281) ([tlehman](https://github.com/tlehman))
 
-## [3.2.0](https://github.com/puppetlabs/beaker-pe/tree/3.2.0) (2024-06-11)
-
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.18.0...3.2.0)
-
 ## [2.18.0](https://github.com/puppetlabs/beaker-pe/tree/2.18.0) (2024-06-11)
 
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.1.0...2.18.0)
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.2.0...2.18.0)
+
+## [3.2.0](https://github.com/puppetlabs/beaker-pe/tree/3.2.0) (2024-06-11)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.1.0...3.2.0)
 
 **Implemented enhancements:**
 
@@ -128,19 +136,19 @@
 
 ## [3.1.0](https://github.com/puppetlabs/beaker-pe/tree/3.1.0) (2024-05-22)
 
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.17.0...3.1.0)
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.1...3.1.0)
 
 **Merged pull requests:**
 
 - \(PE-37784\) Remove upper bound for beaker-puppet [\#273](https://github.com/puppetlabs/beaker-pe/pull/273) ([nmburgan](https://github.com/nmburgan))
 
-## [2.17.0](https://github.com/puppetlabs/beaker-pe/tree/2.17.0) (2024-04-10)
-
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.0.1...2.17.0)
-
 ## [3.0.1](https://github.com/puppetlabs/beaker-pe/tree/3.0.1) (2024-04-10)
 
-[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.16.1...3.0.1)
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.17.0...3.0.1)
+
+## [2.17.0](https://github.com/puppetlabs/beaker-pe/tree/2.17.0) (2024-04-10)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/2.16.1...2.17.0)
 
 ## [2.16.1](https://github.com/puppetlabs/beaker-pe/tree/2.16.1) (2024-03-19)
 
