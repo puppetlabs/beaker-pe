@@ -408,6 +408,22 @@ NOASK
           host.install_package_with_rpm("#{path}/#{filename}#{extension}")
         end
 
+        # Determine the build package to download on an el-7 (Intel) host, install that package onto the host.
+        # Assumed file name format: puppet-agent-9.1.1.13-1.el7.x86_64.rpm.
+        # This method should be called after puppet is installed on the master since it relies on the master
+        # telling it the puppet agent version to form the download URL.
+        # @param [Host] host The el-7 host to download and install the package on.
+        # @param  [Hash{Symbol=>Symbol, String}] opts The options
+        # @api private
+        def install_rpm_on_el7_host(host, puppet_agent_ver, opts)
+          # Since el-7 builds are not available in PE, download from agent-downloads.
+          vars = agent_package_common_vars(puppet_agent_ver, opts)
+          path = "#{vars[:agent_downloads_url]}/#{puppet_agent_ver}/repos/el/7/#{vars[:stream]}/x86_64"
+          filename = "puppet-agent-#{vars[:master_aio_version]}-1.el7.x86_64"
+          extension = ".rpm"
+          host.install_package_with_rpm("#{path}/#{filename}#{extension}")
+        end
+
         #Determine the PE package to download/upload on a windows host, download/upload that package onto the host.
         #Assumed file name format: puppet-enterprise-3.3.0-rc1-559-g97f0833.msi
         # @param [Host] host The windows host to download/upload and unpack PE onto
@@ -1285,6 +1301,8 @@ NOASK
                 install_rpm_on_sles11_host(host, install_params[:puppet_agent_version], opts)
               elsif host['platform'] =~ /solaris-10-sparc/
                 install_pkg_on_sol10_sparc_host(host, install_params[:puppet_agent_version], opts)
+              elsif host['platform'] =~ /el-7/
+                install_rpm_on_el7_host(host, install_params[:puppet_agent_version], opts)
               else
                 install_params.delete(:pe_promoted_builds_url) if install_params[:pe_promoted_builds_url].nil?
                 install_puppet_agent_pe_promoted_repo_on(host, install_params)
