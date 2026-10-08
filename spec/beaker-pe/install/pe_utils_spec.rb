@@ -72,6 +72,10 @@ describe ClassMixedWithDSLInstallUtils do
                                                :pe_ver => '3.0',
                                                :type => 'pe',
                                                :working_dir => '/tmp'} ) }
+  let(:el7host)       { make_host( 'el7', { :platform => 'el-7-x86_64',
+                                               :pe_ver => '3.0',
+                                               :type => 'pe',
+                                               :working_dir => '/tmp'} ) }
   let(:solaris10host) { make_host( 'sol10', { :platform => 'solaris-10-sparc',
                                                  :pe_ver => '3.0',
                                                  :type => 'pe',
@@ -1895,6 +1899,28 @@ NOASK
         expect( hosts[5] ).to receive( :execute ).with( "echo \"#{vanagon_noask}\" > /var/tmp/vanagon-noask" ).once
         expect( hosts[5] ).to receive( :execute ).with( "curl --output #{filename} #{url} && gunzip -c #{filename} | pkgadd -d /dev/stdin -a /var/tmp/vanagon-noask all" ).once
         subject.install_pkg_on_sol10_sparc_host(hosts[5], puppet_agent_ver, opts)
+      end
+    end
+
+    context "install rpm file in el-7 host" do
+      let(:opts) {
+        { :puppet_collection => 'puppet9' }
+      }
+      let(:stream) { opts[:puppet_collection] }
+      let(:puppet_agent_ver) { '9.1.1.30' }
+      let(:agent_downloads_url) { "http://agent-downloads.delivery.puppetlabs.net/puppet-agent" }
+      let(:master_version) { '9.1.1.30' }
+      let(:path) { "#{agent_downloads_url}/#{puppet_agent_ver}/repos/el/7/#{stream}/x86_64" }
+      let(:filename) { "puppet-agent-#{master_version}-1.el7.x86_64" }
+      let(:extension) { '.rpm' }
+      let(:url) { "#{path}/#{filename}#{extension}" }
+
+      it "generates the correct url to download the package" do
+        allow( subject ).to receive( :puppet_fact ).and_return( master_version )
+        allow( subject ).to receive( :master ).and_return( {} )
+
+        expect( el7host ).to receive( :install_package_with_rpm ).with( url ).once
+        subject.install_rpm_on_el7_host(el7host, puppet_agent_ver, opts)
       end
     end
 
