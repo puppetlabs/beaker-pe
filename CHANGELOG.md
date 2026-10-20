@@ -1,6 +1,14 @@
 # Changelog
 
-## [3.6.8](https://github.com/puppetlabs/beaker-pe/tree/3.6.8) (2026-09-17)
+## [3.6.9](https://github.com/puppetlabs/beaker-pe/tree/3.6.9) (2026-10-20)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.8...3.6.9)
+
+**Implemented enhancements:**
+
+- \(PE-47138\) Add el-7 puppet-agent install support via agent-downloads [\#316](https://github.com/puppetlabs/beaker-pe/pull/316) ([shubhamshinde360](https://github.com/shubhamshinde360))
+
+## [3.6.8](https://github.com/puppetlabs/beaker-pe/tree/3.6.8) (2026-09-21)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.7...3.6.8)
 
