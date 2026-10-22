@@ -1278,7 +1278,7 @@ describe ClassMixedWithDSLInstallUtils do
       extension = '.tar.gz'
       expect( subject ).to receive( :scp_to ).with( unixhost, "#{ path }/#{ filename }#{ extension }", "#{ unixhost['working_dir'] }/#{ filename }#{ extension }" ).once
       expect( subject ).to receive( :on ).with( unixhost, /gunzip/ ).once
-      expect( subject ).to receive( :on ).with( unixhost, /tar -xvf/ ).once
+      expect( subject ).to receive( :on ).with( unixhost, "cd #{ unixhost['working_dir'] }; tar -xvf #{ filename }.tar && rm -f #{ filename }.tar" ).once
       subject.fetch_pe( [unixhost], {} )
     end
 
@@ -1296,6 +1296,9 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject )
         .to receive( :on )
               .with( unixhost, "cd #{ unixhost['working_dir'] }; curl --fail --location --output #{ filename }#{ extension } #{ path }/#{ filename }#{ extension }", anything ).once
+      expect( subject )
+        .to receive( :on )
+              .with( unixhost, "cd #{ unixhost['working_dir'] }; tar -xvf #{ filename }#{ extension } && rm -f #{ filename }#{ extension }" ).once
       subject.fetch_pe( [unixhost], {} )
     end
 
@@ -1333,6 +1336,9 @@ describe ClassMixedWithDSLInstallUtils do
       expect( subject )
         .to receive( :on )
               .with( unixhost, "cd #{ unixhost['working_dir'] }; curl --fail --location --output #{ filename }#{ extension } #{ path }/#{ filename }#{ extension }", anything ).once
+      expect( subject )
+        .to receive( :on )
+              .with( unixhost, "cd #{ unixhost['working_dir'] }; tar -xvf #{ filename }#{ extension } && rm -f #{ filename }#{ extension }" ).once
       subject.fetch_pe( [unixhost], {} )
     end
 

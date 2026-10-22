@@ -463,7 +463,8 @@ NOASK
         end
 
         #Determine the PE package to download/upload on a unix style host, download/upload that package onto the host
-        #and unpack it.
+        #and unpack it. The archive is removed once it unpacks: nothing reads it afterwards, and on platforms whose
+        #/tmp is a RAM-backed tmpfs (ubuntu 26.04) it otherwise holds ~1 GB of memory for the life of the host.
         # @param [Host] host The unix style host to download/upload and unpack PE onto
         # @param  [Hash{Symbol=>Symbol, String}] opts The options
         # @option opts [String] :pe_dir Default directory or URL to pull PE package from
@@ -487,7 +488,7 @@ NOASK
               gpg_key_overwrite(host, 'tarball')
             end
             if extension =~ /tar/
-              on host, "cd #{host['working_dir']}; tar -xvf #{filename}.tar"
+              on host, "cd #{host['working_dir']}; tar -xvf #{filename}.tar && rm -f #{filename}.tar"
               gpg_key_overwrite(host, 'tarball')
             end
           else
@@ -518,7 +519,7 @@ NOASK
               }
               fetch_tarball_command = "cd #{host['working_dir']}; #{command_file_push}#{filename}#{extension}"
               retry_on(host, fetch_tarball_command, retry_requirements)
-              on host, "cd #{host['working_dir']}; tar -xvf #{filename}#{extension}"
+              on host, "cd #{host['working_dir']}; tar -xvf #{filename}#{extension} && rm -f #{filename}#{extension}"
 
               gpg_key_overwrite(host, 'tarball')
             end
