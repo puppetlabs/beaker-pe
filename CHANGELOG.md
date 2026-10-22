@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.10](https://github.com/puppetlabs/beaker-pe/tree/3.6.10) (2026-10-22)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.9...3.6.10)
+
+**Implemented enhancements:**
+
+- \(maint\) Remove the PE tarball after unpacking it on unix hosts [\#318](https://github.com/puppetlabs/beaker-pe/pull/318) ([steveax](https://github.com/steveax))
+
 ## [3.6.9](https://github.com/puppetlabs/beaker-pe/tree/3.6.9) (2026-10-20)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.8...3.6.9)
