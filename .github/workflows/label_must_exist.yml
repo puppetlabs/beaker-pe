@@ -1,0 +1,29 @@
+name: Label Must Exist
+
+# Local copy of release-engineering-repo-standards' ensure_label workflow.
+# That repository is internal, and GitHub does not let a public repository
+# call reusable workflows from an internal one, so the shared copy always
+# failed here. The job name is kept so the required status check context
+# stays "ensure_label / Label Must Exist".
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  label_exists:
+    name: Label Must Exist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for labels
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ', ') }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$LABELS" ]; then
+            echo "::error::Please ensure that a label exists on pull request number $PR_NUMBER"
+            exit 1
+          fi
+          echo "Found labels on pull request number $PR_NUMBER: $LABELS"
