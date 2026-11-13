@@ -13,6 +13,9 @@ def location_for(place, fake_version = nil)
 end
 
 group :acceptance_testing do
+  # beaker 4.x passes `verify_host_key: false` to net-ssh, which net-ssh 8 rejects
+  # (ArgumentError: verify_host_key: false has been removed, use :never).
+  gem "net-ssh", "< 8"
   gem "beaker", *location_for(ENV['BEAKER_VERSION'] || '~> 4.0')
   gem "beaker-vmpooler", *location_for(ENV['BEAKER_VMPOOLER_VERSION'] || '~> 1.3')
   gem "beaker-abs", *location_for(ENV['BEAKER_ABS_VERSION'] || '~> 0.8')
