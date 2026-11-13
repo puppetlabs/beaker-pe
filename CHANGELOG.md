@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.7.0](https://github.com/puppetlabs/beaker-pe/tree/3.7.0) (2026-11-13)
+
+[Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.10...3.7.0)
+
+**Implemented enhancements:**
+
+- \(PE-48580\) Add external test PKI helpers to CAUtils [\#320](https://github.com/puppetlabs/beaker-pe/pull/320) ([jonathannewman](https://github.com/jonathannewman))
+
+**Merged pull requests:**
+
+- \(maint\) Pin net-ssh \< 8 for acceptance testing [\#321](https://github.com/puppetlabs/beaker-pe/pull/321) ([jonathannewman](https://github.com/jonathannewman))
+
 ## [3.6.10](https://github.com/puppetlabs/beaker-pe/tree/3.6.10) (2026-10-22)
 
 [Full Changelog](https://github.com/puppetlabs/beaker-pe/compare/3.6.9...3.6.10)
