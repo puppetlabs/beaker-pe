@@ -1544,6 +1544,19 @@ describe ClassMixedWithDSLInstallUtils do
       stub_installer_log_greps
       expect(subject.is_expected_pe_postgres_failure?(mono_master)). to eq(false)
     end
+
+    it 'logs which pattern made the failure count as expected' do
+      stub_installer_log_greps(all_but: "Connection refused")
+      allow(subject.logger).to receive(:notify)
+      expect(subject.logger).to receive(:notify).with(%r{Tolerating the initial master install failure on .*/var/log/puppetlabs/installer/installer_log_name matches 'Connection refused'}).once
+      expect(subject.is_expected_pe_postgres_failure?(mono_master)).to eq(true)
+    end
+
+    it 'does not log a tolerated failure when no pattern is matched' do
+      stub_installer_log_greps
+      expect(subject.logger).not_to receive(:notify).with(/Tolerating the initial master install failure/)
+      expect(subject.is_expected_pe_postgres_failure?(mono_master)).to eq(false)
+    end
   end
 
   describe 'do_install_pe_with_pe_managed_external_postgres with an agent' do
@@ -1608,6 +1621,56 @@ describe ClassMixedWithDSLInstallUtils do
       allow(subject).to receive(:install_agents_only_on).with([agent], {})
       allow(subject).to receive(:run_puppet_on_non_infrastructure_nodes).with([agent])
 
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.not_to raise_error
+    end
+
+    it 'says in the console that the initial master install failure was expected' do
+      allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
+      allow(subject).to receive(:master).and_return(mono_master)
+      allow(subject).to receive(:database).and_return(mono_master)
+      allow(subject).to receive(:dashboard).and_return(mono_master)
+      allow(subject).to receive(:pe_postgres).and_return(pe_postgres)
+
+      allow(subject).to receive(:original_pe_ver).and_return('2017.2')
+      allow(subject).to receive(:prepare_host_installer_options).exactly(2).times
+      allow(subject).to receive(:setup_pe_conf).exactly(2).times
+
+      expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).and_raise(Beaker::Host::CommandFailure, 'Host exited with 6').once.ordered
+      allow(subject).to receive(:is_expected_pe_postgres_failure?).and_return(true)
+      allow(subject).to receive(:execute_installer_cmd).with(pe_postgres, {}).once
+      expect(subject).to receive(:execute_installer_cmd).with(mono_master, {}).once.ordered
+
+      allow(subject).to receive(:stop_agent_on).and_return(true)
+      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2])
+      allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2])
+      allow(subject).to receive(:install_agents_only_on).with([agent], {})
+      allow(subject).to receive(:run_puppet_on_non_infrastructure_nodes).with([agent])
+
+      allow(subject.logger).to receive(:notify)
+      expect(subject.logger).to receive(:notify).with(/The initial master install failed as expected \(pe-postgres is not installed yet\): Host exited with 6/).once
+      expect(subject.logger).to receive(:notify).with(/Continuing: the pe-postgres node is installed next/).once
+
+      expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.not_to raise_error
+    end
+
+    it 'does not say the initial master install failed when it succeeded' do
+      allow(subject).to receive(:fetch_pe).with([mono_master, pe_postgres], {}).and_return(true)
+      allow(subject).to receive(:master).and_return(mono_master)
+      allow(subject).to receive(:database).and_return(mono_master)
+      allow(subject).to receive(:dashboard).and_return(mono_master)
+      allow(subject).to receive(:pe_postgres).and_return(pe_postgres)
+
+      allow(subject).to receive(:original_pe_ver).and_return('2017.2')
+      allow(subject).to receive(:prepare_host_installer_options).exactly(2).times
+      allow(subject).to receive(:setup_pe_conf).exactly(2).times
+      allow(subject).to receive(:execute_installer_cmd)
+      allow(subject).to receive(:stop_agent_on).and_return(true)
+      allow(subject).to receive(:on).with(mono_master, "puppet agent -t", :acceptable_exit_codes=>[0, 2])
+      allow(subject).to receive(:on).with(pe_postgres, "puppet agent -t", :acceptable_exit_codes=> [0, 2])
+      allow(subject).to receive(:install_agents_only_on).with([agent], {})
+      allow(subject).to receive(:run_puppet_on_non_infrastructure_nodes).with([agent])
+
+      expect(subject.logger).not_to receive(:notify).with(/failed as expected/)
       expect{ subject.do_install_pe_with_pe_managed_external_postgres([mono_master, pe_postgres, agent], {}) }.not_to raise_error
     end
 
