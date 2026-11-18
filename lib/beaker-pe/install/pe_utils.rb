@@ -2201,6 +2201,13 @@ EOM
                 unless is_expected_pe_postgres_failure?(master)
                   raise "Install on master failed in an unexpected manner: #{e.message}"
                 end
+                # Say so in the console: the installer output above is full of
+                # service start failures (pe-puppetdb "Startup timed out after 300
+                # seconds", classifier "Timeout waiting for the database pool", ...)
+                # that are not a test failure, and they look like one when reading
+                # the log after a later step has failed.
+                logger.notify("The initial master install failed as expected (pe-postgres is not installed yet): #{e.message.lines.first.to_s.strip}")
+                logger.notify("Continuing: the pe-postgres node is installed next and the master install is repeated afterwards. The service start errors above came from this first pass and are not the reason for a later failure unless they repeat in the second pass.")
               end
             end
           end
@@ -2264,6 +2271,10 @@ EOM
 
           allowed_errors.each do |error|
             if(on(host, "grep -E '#{error}' #{installer_log_dir}/#{latest_installer_log_file}", :acceptable_exit_codes => [0,1]).exit_code == 0)
+              # Record which pattern made this failure count as expected. The list
+              # is broad ("Connection refused" matches almost any service problem),
+              # so this is how a reader can tell what was tolerated.
+              logger.notify("Tolerating the initial master install failure on #{host}: #{installer_log_dir}/#{latest_installer_log_file} matches '#{error}'")
               return true
             end
           end
